@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#0B0F19] text-gray-100 antialiased selection:bg-purple-500/30 selection:text-white;
+  }
+
+  /* Global Fonts (Exclude Home) */
+  body:not(:has(.home-wrapper)) {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+  
+  body:not(:has(.home-wrapper)) h1, 
+  body:not(:has(.home-wrapper)) h2, 
+  body:not(:has(.home-wrapper)) h3, 
+  body:not(:has(.home-wrapper)) h4, 
+  body:not(:has(.home-wrapper)) h5, 
+  body:not(:has(.home-wrapper)) h6 {
+    font-family: 'Outfit', sans-serif;
+  }
+
+  input, select, textarea {
+    @apply bg-[#131B2F] border border-white/10 text-white placeholder-gray-500 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all;
+  }
+  select option {
+    @apply bg-[#131B2F] text-white;
+  }
+  table {
+    @apply w-full text-left border-collapse;
+  }
+  th {
+    @apply font-semibold text-gray-300 pointer-events-none;
+  }
+}
+
+/* Global Entrance Animations (Exclude Home) */
+@keyframes globalFadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+body:not(:has(.home-wrapper)) #root > div {
+  animation: globalFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) ease-out forwards;
+}
+
+/* Delay staggered animations for list items and cards */
+body:not(:has(.home-wrapper)) tbody tr,
+body:not(:has(.home-wrapper)) .bg-\[\#131B2F\]\/80 {
+  opacity: 0;
+  animation: globalFadeUp 0.5s ease-out forwards;
+}
+
+body:not(:has(.home-wrapper)) tbody tr:nth-child(1) { animation-delay: 0.1s; }
+body:not(:has(.home-wrapper)) tbody tr:nth-child(2) { animation-delay: 0.15s; }
+body:not(:has(.home-wrapper)) tbody tr:nth-child(3) { animation-delay: 0.2s; }
+body:not(:has(.home-wrapper)) tbody tr:nth-child(4) { animation-delay: 0.25s; }
+body:not(:has(.home-wrapper)) tbody tr:nth-child(5) { animation-delay: 0.3s; }
+body:not(:has(.home-wrapper)) tbody tr:nth-child(n+6) { animation-delay: 0.35s; }
+
+body:not(:has(.home-wrapper)) .grid > div:nth-child(1) { animation-delay: 0.1s; }
+body:not(:has(.home-wrapper)) .grid > div:nth-child(2) { animation-delay: 0.2s; }
+body:not(:has(.home-wrapper)) .grid > div:nth-child(3) { animation-delay: 0.3s; }
+body:not(:has(.home-wrapper)) .grid > div:nth-child(n+4) { animation-delay: 0.4s; }
+
+/* Custom scrollbar for webkit to match the dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0B0F19; 
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(147, 51, 234, 0.3); 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(147, 51, 234, 0.6); 
+}
