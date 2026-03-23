@@ -17,7 +17,7 @@ function AdminLogin() {
     setError("");
 
     try {
-      const res = await axios.post("http://localhost:2008/login", {
+      axios.post("https://smart-hostel-api-rm6j.onrender.com/login",{
         email,
         password,
       });
