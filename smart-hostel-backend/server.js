@@ -192,7 +192,7 @@ app.get("/student/profile", authMiddleware, (req, res) => {
     if (result.length === 0) return res.status(404).json({ message: "User not found" });
 
     const player = result[0];
-    
+
     // Standard fields for all roles
     player.joinDate = player.created_at;
     player.hostelName = "ZyrraStay Premium"; // Default hostel name
@@ -210,7 +210,7 @@ app.get("/student/profile", authMiddleware, (req, res) => {
             player.presentDays = attRes ? attRes[0].present_days : 0;
             player.complaints = compRes ? compRes[0].active_complaints : 0;
             player.feeStatus = feeRes && feeRes.length > 0 ? feeRes[0].status : 'due';
-            
+
             // Calculate % since joined (approximate)
             const joinedDate = new Date(player.created_at);
             const today = new Date();
@@ -403,14 +403,14 @@ app.get("/admin/complaints", authMiddleware, (req, res) => {
 
 app.post("/student/mark-attendance", authMiddleware, (req, res) => {
   let { qrData } = req.body;
-  
+
   if (!qrData) {
     return res.status(400).json({ message: "No QR data provided" });
   }
 
   // Trim and normalize the incoming QR data just in case
   qrData = String(qrData).trim();
-  
+
   // Get today's date in YYYY-MM-DD format consistently
   const now = new Date();
   const today = now.toLocaleDateString('en-CA'); // YYYY-MM-DD
@@ -655,7 +655,7 @@ app.get("/admin/rooms", authMiddleware, (req, res) => {
 /* ================= ADMIN CREATE ROOM ================= */
 app.post("/admin/rooms", authMiddleware, (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
-  
+
   const { roomNumber, capacity, block, floor } = req.body;
   if (!roomNumber || !capacity) return res.status(400).json({ message: "Room number and capacity are required" });
 
@@ -672,11 +672,11 @@ app.post("/admin/rooms", authMiddleware, (req, res) => {
 /* ================= ADMIN DELETE ROOM ================= */
 app.delete("/admin/rooms/:roomNumber", authMiddleware, (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
-  
+
   const roomNumber = req.params.roomNumber;
   db.query("DELETE FROM rooms WHERE room_number = ?", [roomNumber], (err) => {
     if (err) return res.status(500).json({ message: "Server error" });
-    
+
     // Unassign students from this room
     db.query("UPDATE users SET roomNumber = NULL WHERE roomNumber = ?", [roomNumber], () => {
       res.json({ message: "Room deleted successfully" });
@@ -824,7 +824,7 @@ app.get("/warden/rooms", authMiddleware, (req, res) => {
 
 app.post("/warden/rooms", authMiddleware, (req, res) => {
   if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
-  
+
   const { roomNumber, capacity, block, floor } = req.body;
   if (!roomNumber || !capacity) return res.status(400).json({ message: "Room number and capacity are required" });
 
@@ -840,11 +840,11 @@ app.post("/warden/rooms", authMiddleware, (req, res) => {
 
 app.delete("/warden/rooms/:roomNumber", authMiddleware, (req, res) => {
   if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
-  
+
   const roomNumber = req.params.roomNumber;
   db.query("DELETE FROM rooms WHERE room_number = ?", [roomNumber], (err) => {
     if (err) return res.status(500).json({ message: "Server error" });
-    
+
     // Unassign students from this room
     db.query("UPDATE users SET roomNumber = NULL WHERE roomNumber = ?", [roomNumber], () => {
       res.json({ message: "Room deleted successfully" });
@@ -942,10 +942,10 @@ app.put("/warden/leave-requests/:id", authMiddleware, (req, res) => {
   if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
   const { status, type } = req.body;
   const requestId = req.params.id;
-  
+
   const table = type === 'parent' ? 'parent_leave_requests' : 'leave_requests';
   const query = `UPDATE ${table} SET status = ? WHERE id = ?`;
-  
+
   db.query(query, [status, requestId], (err) => {
     if (err) return res.status(500).json({ message: "Server error" });
     res.json({ message: `Leave request ${status} successfully` });
@@ -1162,7 +1162,7 @@ app.post("/parent/leave", authMiddleware, async (req, res) => {
     return res.status(403).json({ message: "Access denied" });
 
   const { reason, startDate, endDate } = req.body;
-  
+
   if (!reason || !startDate || !endDate) {
     return res.status(400).json({ message: "Please fill all fields" });
   }
@@ -1228,6 +1228,8 @@ app.get("/parent/notifications", authMiddleware, async (req, res) => {
 
 /* ================= START SERVER ================= */
 
-app.listen(2008, () => {
-  console.log("Server running on port 2008 🚀");
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
 });
