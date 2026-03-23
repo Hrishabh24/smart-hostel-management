@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate, Link } from "react-router-dom";
 
+const API = "https://smart-hostel-api-rm6j.onrender.com"; // ✅ FIXED
+
 function AdminLogin() {
   const navigate = useNavigate();
 
@@ -17,10 +19,12 @@ function AdminLogin() {
     setError("");
 
     try {
-      axios.post("https://smart-hostel-api-rm6j.onrender.com/login",{
+      const res = await axios.post(`${API}/login`, {
         email,
         password,
       });
+
+      console.log("Response:", res.data); // 🔍 Debug
 
       const { token, role } = res.data;
 
@@ -36,7 +40,13 @@ function AdminLogin() {
       navigate("/admin-dashboard");
 
     } catch (err) {
-      setError(err.response?.data?.message || "Login Failed");
+      console.error("Login Error:", err); // 🔍 Debug
+
+      setError(
+        err.response?.data?.message ||
+        err.message ||
+        "Login Failed"
+      );
     }
 
     setLoading(false);
@@ -50,7 +60,6 @@ function AdminLogin() {
 
       <div className="w-full max-w-md bg-[#131B2F]/80 backdrop-blur-xl border border-white/10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-8 relative z-10">
 
-        {/* Top Accent Line */}
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-purple-500 to-blue-500 rounded-t-3xl"></div>
 
         <h2 className="text-3xl font-extrabold text-center text-white mt-4 tracking-tight">
@@ -71,7 +80,7 @@ function AdminLogin() {
             <input
               type="email"
               placeholder="admin@hostel.com"
-              className="w-full p-4 bg-[#0B0F19] border border-white/10 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-500"
+              className="w-full p-4 bg-[#0B0F19] border border-white/10 text-white rounded-xl"
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
@@ -90,7 +99,7 @@ function AdminLogin() {
             <input
               type={showPassword ? "text" : "password"}
               placeholder="••••••••"
-              className="w-full p-4 bg-[#0B0F19] border border-white/10 text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-gray-500"
+              className="w-full p-4 bg-[#0B0F19] border border-white/10 text-white rounded-xl"
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
@@ -100,7 +109,7 @@ function AdminLogin() {
             />
 
             <span
-              className="absolute right-4 top-[2.7rem] cursor-pointer text-sm text-gray-400 hover:text-white transition-colors"
+              className="absolute right-4 top-[2.7rem] cursor-pointer text-sm text-gray-400"
               onClick={() => setShowPassword(!showPassword)}
             >
               {showPassword ? "Hide" : "Show"}
@@ -109,7 +118,7 @@ function AdminLogin() {
             <div className="text-right mt-3 text-sm">
               <Link
                 to="/forgot-password"
-                className="text-fuchsia-400 font-medium hover:text-fuchsia-300 hover:underline transition-colors"
+                className="text-fuchsia-400 font-medium hover:underline"
               >
                 Forgot Intelligence Key?
               </Link>
@@ -127,21 +136,16 @@ function AdminLogin() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-xl font-bold hover:shadow-[0_0_25px_rgba(147,51,234,0.5)] transform hover:-translate-y-0.5 transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-xl font-bold"
           >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            ) : (
-              "Access System →"
-            )}
+            {loading ? "Loading..." : "Access System →"}
           </button>
 
         </form>
 
-        {/* Footer Text */}
-        <div className="mt-8 text-center text-gray-400 text-sm border-t border-white/5 pt-6">
-          System Integrity Issue?{" "}
-          <span className="text-purple-400 font-medium cursor-pointer hover:underline transition-colors">
+        <div className="mt-8 text-center text-gray-400 text-sm border-t pt-6">
+          System Issue?{" "}
+          <span className="text-purple-400 font-medium cursor-pointer">
             Contact Tech Core
           </span>
         </div>
