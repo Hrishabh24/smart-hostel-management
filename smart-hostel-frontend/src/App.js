@@ -15,6 +15,8 @@ import Notifications from "./pages/Notifications";
 import QRDisplay from "./pages/QRDisplay";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfUse from "./pages/TermsOfUse";
 import ContactSupport from "./pages/ContactSupport";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -55,6 +57,8 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/qr-display" element={<QRDisplay />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms-of-use" element={<TermsOfUse />} />
         <Route path="*" element={<Navigate to="/" replace />} />
 
         {/* Protected Routes */}

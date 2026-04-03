@@ -32,6 +32,13 @@
   table {
     @apply w-full text-left border-collapse;
   }
+  @media (max-width: 768px) {
+    table {
+      display: block;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+  }
   th {
     @apply font-semibold text-gray-300 pointer-events-none;
   }

@@ -70,14 +70,14 @@ function StudentDashboard() {
     <div className="flex bg-[#0B0F19] min-h-screen text-gray-100">
       <Sidebar />
 
-      <main className="flex-1 p-8 lg:p-12 overflow-y-auto">
+      <main className="flex-1 p-4 md:p-8 lg:p-12 overflow-y-auto">
         {/* Header Section */}
         <header className="mb-12 relative">
           <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-600/10 rounded-full blur-[120px] pointer-events-none" />
           <div className="relative z-10">
             <p className="text-blue-400 font-bold tracking-widest uppercase text-xs mb-3">{greeting} • Welcome back</p>
-            <h1 className="text-5xl font-black text-white tracking-tight flex items-center gap-3">
-              {name || "Student"} <span className="text-blue-500 text-3xl opacity-50 font-normal">#24</span>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-white tracking-tight flex items-center gap-3">
+              {name || "Student"} <span className="text-blue-500 text-xl sm:text-2xl md:text-3xl opacity-50 font-normal">#24</span>
             </h1>
             <p className="text-gray-400 mt-4 text-lg max-w-2xl font-medium leading-relaxed">
               Managing your hostel stay has never been easier. Check your status and quick actions below.
@@ -95,7 +95,7 @@ function StudentDashboard() {
               </div>
               <span className="text-[10px] font-black tracking-widest text-blue-400/50 uppercase">Attendance</span>
             </div>
-            <h3 className="text-4xl font-black text-white mb-2">{attendancePercentage}%</h3>
+            <h3 className="text-3xl md:text-4xl font-black text-white mb-2">{attendancePercentage}%</h3>
             <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-1000" 
@@ -112,7 +112,7 @@ function StudentDashboard() {
               </div>
               <span className={`text-[10px] font-black tracking-widest uppercase ${feeStatus === "Paid" ? "text-emerald-400/50" : "text-rose-400/50"}`}>Payment</span>
             </div>
-            <h3 className="text-4xl font-black text-white mb-2">{feeStatus}</h3>
+            <h3 className="text-3xl md:text-4xl font-black text-white mb-2">{feeStatus}</h3>
             <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">
               {feeStatus === "Paid" ? "Cleared for current cycle" : "Payment overdue detected"}
             </p>
@@ -126,7 +126,7 @@ function StudentDashboard() {
               </div>
               <span className="text-[10px] font-black tracking-widest text-amber-400/50 uppercase">Accommodation</span>
             </div>
-            <h3 className="text-4xl font-black text-white mb-2 truncate">{roomDetails}</h3>
+            <h3 className="text-3xl md:text-4xl font-black text-white mb-2 truncate">{roomDetails}</h3>
             <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Resident since Aug 2025</p>
           </div>
 
@@ -139,7 +139,7 @@ function StudentDashboard() {
               <span className="text-[10px] font-black tracking-widest text-purple-400/50 uppercase">Feedback</span>
             </div>
             <div className="flex items-baseline gap-2">
-              <h3 className="text-4xl font-black text-white mb-2">{complaintStatus}</h3>
+              <h3 className="text-3xl md:text-4xl font-black text-white mb-2">{complaintStatus}</h3>
               <span className="text-sm font-bold text-gray-500">Active</span>
             </div>
             <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Responses will show here</p>

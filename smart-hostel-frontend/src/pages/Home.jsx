@@ -4,7 +4,7 @@ import axios from "axios";
 import {
   FaBars, FaTimes, FaQrcode, FaCreditCard, FaClipboardList, FaChartBar,
   FaUsers, FaCheckCircle, FaEnvelope, FaPhoneAlt, FaMapMarkerAlt,
-  FaChevronRight, FaHome, FaDesktop
+  FaChevronRight, FaHome, FaDesktop, FaTwitter, FaGithub, FaLinkedin
 } from "react-icons/fa";
 
 export default function Home() {
@@ -375,12 +375,18 @@ export default function Home() {
               Next-generation campus and residential infrastructure. Crafted with precision for speed, security, and absolute transparency.
             </p>
             <div className="flex gap-4 mt-8">
-              {['twitter', 'github', 'linkedin'].map((social) => (
-                <div key={social} className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-purple-600/50 hover:border-purple-500/50 transition-all cursor-pointer">
-                  <span className="sr-only">{social}</span>
-                  <div className="w-4 h-4 rounded-full border-2 border-current"></div>
-                </div>
-              ))}
+              <a href="#" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-blue-500/50 hover:border-blue-500/50 hover:-translate-y-2 hover:scale-110 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-blue-500/50">
+                <span className="sr-only">Twitter</span>
+                <FaTwitter className="text-lg" />
+              </a>
+              <a href="#" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700/50 hover:border-gray-500/50 hover:-translate-y-2 hover:scale-110 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-gray-500/50">
+                <span className="sr-only">GitHub</span>
+                <FaGithub className="text-lg" />
+              </a>
+              <a href="#" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-indigo-600/50 hover:border-indigo-500/50 hover:-translate-y-2 hover:scale-110 transition-all duration-300 cursor-pointer shadow-lg hover:shadow-indigo-500/50">
+                <span className="sr-only">LinkedIn</span>
+                <FaLinkedin className="text-lg" />
+              </a>
             </div>
           </div>
 
@@ -426,8 +432,8 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 lg:px-8 mt-16 pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between text-xs sm:text-sm text-gray-500">
           <p>© {new Date().getFullYear()} ZyrraStay Technology. All rights reserved.</p>
           <div className="flex gap-6 mt-4 md:mt-0 font-medium">
-            <span className="hover:text-gray-300 cursor-pointer transition-colors">Privacy Framework</span>
-            <span className="hover:text-gray-300 cursor-pointer transition-colors">Terms of Use</span>
+            <Link to="/privacy-policy" className="hover:text-blue-400 cursor-pointer transition-colors">Privacy Framework</Link>
+            <Link to="/terms-of-use" className="hover:text-blue-400 cursor-pointer transition-colors">Terms of Use</Link>
           </div>
         </div>
       </footer>

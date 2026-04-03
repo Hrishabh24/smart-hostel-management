@@ -103,7 +103,7 @@ function Profile() {
                   {/* Profile Image */}
                   <div className="flex-shrink-0 relative group">
                     <img
-                      src={profile.profilePic ? `http://localhost:2008${profile.profilePic}` : '/default-avatar.png'}
+                      src={profile.profilePic ? (profile.profilePic.startsWith('http') ? profile.profilePic : `${API}${profile.profilePic}`) : '/default-avatar.png'}
                       alt={profile.name}
                       className="w-32 h-32 md:w-40 md:h-40 rounded-full object-cover border-4 border-blue-600/50 shadow-[0_0_50px_rgba(37,99,235,0.3)] bg-[#0B0F19]/80 transition-transform duration-300 group-hover:scale-105"
                     />

@@ -78,7 +78,7 @@ function AdminDashboard() {
       </h1>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-[#131B2F]/80 backdrop-blur-md border border-white/5 shadow-[0_4px_20px_rgba(0,0,0,0.3)] p-6 rounded-xl">
           <h3 className="text-lg font-semibold">Total Students</h3>
           <p className="text-3xl text-purple-400 font-bold">
@@ -109,7 +109,7 @@ function AdminDashboard() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="bg-[#131B2F]/80 backdrop-blur-md border border-white/5 shadow-[0_4px_20px_rgba(0,0,0,0.3)] p-6 rounded-xl">
           <h3 className="text-lg font-semibold mb-4">Attendance Chart</h3>
           <BarChart width={300} height={200} data={attendanceData}>
@@ -157,8 +157,9 @@ function AdminDashboard() {
       </div>
 
       {/* Recent Activity Table */}
-      <div className="bg-[#131B2F]/80 backdrop-blur-md border border-white/5 shadow-[0_4px_20px_rgba(0,0,0,0.3)] p-6 rounded-xl">
+      <div className="bg-[#131B2F]/80 backdrop-blur-md border border-white/5 shadow-[0_4px_20px_rgba(0,0,0,0.3)] p-6 rounded-xl overflow-x-auto">
         <h3 className="text-lg font-semibold mb-4">Recent Activity</h3>
+        <div className="min-w-[500px]">
         <table className="w-full">
           <thead>
             <tr className="bg-[#0B0F19]/50">
@@ -177,6 +178,7 @@ function AdminDashboard() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </>
   );

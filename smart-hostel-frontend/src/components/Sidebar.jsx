@@ -10,12 +10,17 @@ import {
   Bell,
   LogOut,
   ChevronRight,
-  HelpCircle
+  HelpCircle,
+  Menu,
+  X
 } from "lucide-react";
+
+import { useState } from "react";
 
 function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isOpen, setIsOpen] = useState(false);
 
   const logout = () => {
     localStorage.clear();
@@ -35,7 +40,22 @@ function Sidebar() {
   ];
 
   return (
-    <div className="w-72 bg-[#131B2F]/40 backdrop-blur-xl border-r border-white/5 p-6 flex flex-col justify-between min-h-screen sticky top-0">
+    <>
+      <button 
+        onClick={() => setIsOpen(!isOpen)} 
+        className="md:hidden fixed top-4 right-4 z-50 p-2.5 bg-blue-600/80 backdrop-blur-md rounded-xl text-white shadow-xl border border-white/10"
+      >
+        {isOpen ? <X size={24} /> : <Menu size={24} />}
+      </button>
+
+      {isOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      <div className={`w-72 bg-[#131B2F]/90 backdrop-blur-xl border-r border-white/5 p-6 flex flex-col justify-between min-h-screen fixed md:sticky top-0 z-50 transition-transform duration-300 ease-out ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}>
       <div>
         <div className="flex items-center gap-3 mb-10 px-2">
           <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
@@ -93,6 +113,7 @@ function Sidebar() {
         </button>
       </div>
     </div>
+    </>
   );
 }
 
