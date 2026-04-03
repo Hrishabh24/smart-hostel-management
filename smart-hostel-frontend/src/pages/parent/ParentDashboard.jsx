@@ -13,7 +13,7 @@ function ParentDashboard() {
     const fetch = async () => {
       setLoading(true);
       try {
-        const [attRes, feeRes, leaveRes] = await Promise.all([
+        const [attRes, feeRes, leaveRes] = await Promise.allSettled([
           axios.get("http://localhost:2008/parent/attendance-percentage", {
             headers: { Authorization: `Bearer ${token}` },
           }),
@@ -24,10 +24,11 @@ function ParentDashboard() {
             headers: { Authorization: `Bearer ${token}` },
           })
         ]);
+        
         setSummary({
-          attendance: attRes.data,
-          fees: feeRes.data,
-          leaves: leaveRes.data
+          attendance: attRes.status === 'fulfilled' ? attRes.value.data : null,
+          fees: feeRes.status === 'fulfilled' ? feeRes.value.data : null,
+          leaves: leaveRes.status === 'fulfilled' ? leaveRes.value.data : []
         });
       } catch (err) {
         console.error(err);

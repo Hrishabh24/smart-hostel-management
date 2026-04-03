@@ -30,23 +30,26 @@ function WardMainDashboard() {
   const fetchStats = async () => {
     try {
       setLoading(true);
+      setError("");
+
+      const [studentsRes, attendanceRes, complaintsRes, leaveRes] = await Promise.allSettled([
+        axios.get("http://localhost:2008/warden/students", config),
+        axios.get("http://localhost:2008/warden/attendance", config),
+        axios.get("http://localhost:2008/warden/complaints", config),
+        axios.get("http://localhost:2008/warden/leave-requests", config)
+      ]);
+
+      const totalStudents = studentsRes.status === 'fulfilled' ? studentsRes.value.data.length : 0;
       
-      // Fetch students
-      const studentsRes = await axios.get("http://localhost:2008/warden/students", config);
-      const totalStudents = studentsRes.data.length;
-      
-      // Fetch attendance data
-      const attendanceRes = await axios.get("http://localhost:2008/warden/attendance", config);
-      const presentStudents = attendanceRes.data.filter((s) => s.present).length;
-      const absentStudents = totalStudents - presentStudents;
-      
-      // Fetch complaints
-      const complaintsRes = await axios.get("http://localhost:2008/warden/complaints", config);
-      const complaints = complaintsRes.data.filter((c) => c.status !== "resolved").length;
-      
-      // Fetch leave requests
-      const leaveRes = await axios.get("http://localhost:2008/warden/leave-requests", config);
-      const leaveRequests = leaveRes.data.filter((l) => l.status === "pending").length;
+      let presentStudents = 0;
+      let absentStudents = 0;
+      if (attendanceRes.status === 'fulfilled') {
+        presentStudents = attendanceRes.value.data.filter((s) => s.status === 'present').length;
+        absentStudents = totalStudents - presentStudents;
+      }
+
+      const complaints = complaintsRes.status === 'fulfilled' ? complaintsRes.value.data.filter((c) => c.status !== "resolved").length : 0;
+      const leaveRequests = leaveRes.status === 'fulfilled' ? leaveRes.value.data.filter((l) => l.status === "pending").length : 0;
 
       setStats({
         totalStudents,
@@ -55,18 +58,12 @@ function WardMainDashboard() {
         complaints,
         leaveRequests,
       });
-      setError("");
+
+      if (studentsRes.status === 'rejected' || attendanceRes.status === 'rejected' || complaintsRes.status === 'rejected' || leaveRes.status === 'rejected') {
+        console.error("Some stats failed to load. Check backend endpoints.");
+      }
     } catch (err) {
       console.error("Error fetching stats:", err);
-      
-      // Use mock data if backend fails
-      setStats({
-        totalStudents: 45,
-        presentStudents: 38,
-        absentStudents: 7,
-        complaints: 5,
-        leaveRequests: 3,
-      });
     } finally {
       setLoading(false);
     }

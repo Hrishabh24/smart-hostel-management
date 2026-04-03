@@ -30,7 +30,7 @@ function EditProfile() {
   const getProfilePicUrl = (url) => {
     if (!url) return '/default-avatar.png';
     if (url.startsWith('http')) return url;
-    return `http://localhost:2008${url}`;
+    return `https://smart-hostel-api-rm6j.onrender.com${url}`;
   };
 
   useEffect(() => {

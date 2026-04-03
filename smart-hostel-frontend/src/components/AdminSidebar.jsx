@@ -1,86 +1,93 @@
-import { Link, useNavigate } from "react-router-dom";
-import { FaChartLine, FaUserGraduate, FaHotel, FaClipboardCheck, FaMoneyBillWave, FaBullhorn, FaUserShield, FaUserFriends, FaFileAlt, FaCog, FaSignOutAlt, FaUser } from "react-icons/fa";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import {
+  LayoutDashboard,
+  User,
+  Users,
+  Bed,
+  ClipboardCheck,
+  CreditCard,
+  AlertCircle,
+  ShieldCheck,
+  FileText,
+  Settings,
+  LogOut,
+  ChevronRight
+} from "lucide-react";
 
 function AdminSidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const logout = () => {
     localStorage.clear();
     navigate("/");
   };
 
-  return (
-    <div className="w-64 bg-gradient-to-br from-purple-600 to-blue-600 text-white min-h-screen p-6 flex flex-col justify-between">
-      <div>
-        <h2 className="text-2xl font-bold mb-8 flex items-center gap-2">
-          Admin Panel
-        </h2>
+  const menuItems = [
+    { path: "/admin-dashboard", icon: LayoutDashboard, label: "Dashboard" },
+    { path: "/admin-dashboard/profile", icon: User, label: "My Profile" },
+    { path: "/admin-dashboard/students", icon: Users, label: "Students" },
+    { path: "/admin-dashboard/rooms", icon: Bed, label: "Rooms" },
+    { path: "/admin-dashboard/attendance", icon: ClipboardCheck, label: "Attendance" },
+    { path: "/admin-dashboard/fees", icon: CreditCard, label: "Fees" },
+    { path: "/admin-dashboard/complaints", icon: AlertCircle, label: "Complaints" },
+    { path: "/admin-dashboard/wardens", icon: ShieldCheck, label: "Wardens" },
+    { path: "/admin-dashboard/parents", icon: Users, label: "Parents" },
+    { path: "/admin-dashboard/reports", icon: FileText, label: "Reports" },
+    { path: "/admin-dashboard/settings", icon: Settings, label: "Settings" }
+  ];
 
-        <ul className="space-y-2">
-          <li>
-            <Link to="/admin-dashboard" className="flex items-center gap-3 py-2 px-4 rounded hover:bg-[#131B2F]/10 transition duration-200">
-              <FaChartLine /> Dashboard
-            </Link>
-          </li>
-          <li>
-            <Link to="/admin-dashboard/profile" className="flex items-center gap-3 py-2 px-4 rounded hover:bg-[#131B2F]/10 transition duration-200">
-              <FaUser /> My Profile
-            </Link>
-          </li>
-          <li>
-            <Link to="/admin-dashboard/students" className="flex items-center gap-3 py-2 px-4 rounded hover:bg-[#131B2F]/10 transition duration-200">
-              <FaUserGraduate /> Students
-            </Link>
-          </li>
-          <li>
-            <Link to="/admin-dashboard/rooms" className="flex items-center gap-3 py-2 px-4 rounded hover:bg-[#131B2F]/10 transition duration-200">
-              <FaHotel /> Rooms
-            </Link>
-          </li>
-          <li>
-            <Link to="/admin-dashboard/attendance" className="flex items-center gap-3 py-2 px-4 rounded hover:bg-[#131B2F]/10 transition duration-200">
-              <FaClipboardCheck /> Attendance
-            </Link>
-          </li>
-          <li>
-            <Link to="/admin-dashboard/fees" className="flex items-center gap-3 py-2 px-4 rounded hover:bg-[#131B2F]/10 transition duration-200">
-              <FaMoneyBillWave /> Fees
-            </Link>
-          </li>
-          <li>
-            <Link to="/admin-dashboard/complaints" className="flex items-center gap-3 py-2 px-4 rounded hover:bg-[#131B2F]/10 transition duration-200">
-              <FaBullhorn /> Complaints
-            </Link>
-          </li>
-          <li>
-            <Link to="/admin-dashboard/wardens" className="flex items-center gap-3 py-2 px-4 rounded hover:bg-[#131B2F]/10 transition duration-200">
-              <FaUserShield /> Wardens
-            </Link>
-          </li>
-          <li>
-            <Link to="/admin-dashboard/parents" className="flex items-center gap-3 py-2 px-4 rounded hover:bg-[#131B2F]/10 transition duration-200">
-              <FaUserFriends /> Parents
-            </Link>
-          </li>
-          <li>
-            <Link to="/admin-dashboard/reports" className="flex items-center gap-3 py-2 px-4 rounded hover:bg-[#131B2F]/10 transition duration-200">
-              <FaFileAlt /> Reports
-            </Link>
-          </li>
-          <li>
-            <Link to="/admin-dashboard/settings" className="flex items-center gap-3 py-2 px-4 rounded hover:bg-[#131B2F]/10 transition duration-200">
-              <FaCog /> Settings
-            </Link>
-          </li>
-        </ul>
+  return (
+    <div className="w-72 bg-[#131B2F]/40 backdrop-blur-xl border-r border-white/5 p-6 flex flex-col justify-between min-h-screen sticky top-0">
+      <div>
+        <div className="flex items-center gap-3 mb-10 px-2">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <span className="text-white font-black text-xl">Z</span>
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-white tracking-tight">
+              ZyrraStay
+            </h2>
+            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Admin Panel</p>
+          </div>
+        </div>
+
+        <nav>
+          <ul className="space-y-1.5">
+            {menuItems.map((item) => {
+              // Matches exact path or starts with path (if it's not root-like, but since they all start with /admin-dashboard we check equality for active state exactly as student panel)
+              const isActive = location.pathname === item.path || (location.pathname === "/admin-dashboard/" && item.path === "/admin-dashboard");
+              return (
+                <li key={item.path}>
+                  <Link
+                    to={item.path}
+                    className={`flex items-center justify-between group px-4 py-3 rounded-2xl transition-all duration-300 ${isActive
+                        ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                        : "text-gray-400 hover:bg-white/5 hover:text-white"
+                      }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon size={20} className={isActive ? "text-white" : "group-hover:text-blue-400 transition-colors"} />
+                      <span className="font-bold text-sm">{item.label}</span>
+                    </div>
+                    {isActive && <ChevronRight size={14} className="opacity-50" />}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
       </div>
 
-      <button
-        onClick={logout}
-        className="flex items-center justify-center gap-2 bg-[#131B2F]/80 backdrop-blur-md border border-white/5 text-purple-400 py-2 rounded-lg font-semibold hover:bg-[#0B0F19]/50 transition duration-200"
-      >
-        <FaSignOutAlt /> Logout
-      </button>
+      <div className="space-y-4">
+        <button
+          onClick={logout}
+          className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl border border-white/5 bg-white/5 text-gray-400 font-bold text-sm hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all duration-300 group"
+        >
+          <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
+          Logout Account
+        </button>
+      </div>
     </div>
   );
 }

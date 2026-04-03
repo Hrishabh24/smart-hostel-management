@@ -1,10 +1,20 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { FaTachometerAlt, FaClipboardCheck, FaMoneyBillWave, FaUserTag, FaBell, FaSignOutAlt, FaUser } from "react-icons/fa";
+import {
+  LayoutDashboard,
+  User,
+  ClipboardCheck,
+  CreditCard,
+  ShieldCheck,
+  Bell,
+  LogOut,
+  ChevronRight
+} from "lucide-react";
 
 function ParentSidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [childName, setChildName] = useState("");
   const token = localStorage.getItem("token");
 
@@ -27,70 +37,72 @@ function ParentSidebar() {
     if (token) fetchChild();
   }, [token]);
 
-  return (
-    <div className="w-64 bg-gradient-to-br from-purple-600 to-blue-600 text-white p-6 flex flex-col justify-between min-h-screen">
-      <div>
-        <h2 className="text-2xl font-bold mb-2">Parent Panel</h2>
-        {childName && <p className="text-sm mb-6">Child: {childName}</p>}
+  const menuItems = [
+    { path: "/parent-dashboard", icon: LayoutDashboard, label: "Dashboard" },
+    { path: "/parent-dashboard/profile", icon: User, label: "My Profile" },
+    { path: "/parent-dashboard/attendance", icon: ClipboardCheck, label: "Student Attendance" },
+    { path: "/parent-dashboard/fees", icon: CreditCard, label: "Fees" },
+    { path: "/parent-dashboard/leave", icon: ShieldCheck, label: "Leave Status" },
+    { path: "/parent-dashboard/notifications", icon: Bell, label: "Notifications" }
+  ];
 
-        <ul className="space-y-4">
-          <li>
-            <Link
-              to="/parent-dashboard"
-              className="flex items-center gap-3 hover:text-gray-200 transition duration-200"
-            >
-              <FaTachometerAlt /> Dashboard
-            </Link>
-          </li>
-          <li>
-            <Link
-              to="/parent-dashboard/profile"
-              className="flex items-center gap-3 hover:text-gray-200 transition duration-200"
-            >
-              <FaUser /> My Profile
-            </Link>
-          </li>
-          <li>
-            <Link
-              to="/parent-dashboard/attendance"
-              className="flex items-center gap-3 hover:text-gray-200 transition duration-200"
-            >
-              <FaClipboardCheck /> Student Attendance
-            </Link>
-          </li>
-          <li>
-            <Link
-              to="/parent-dashboard/fees"
-              className="flex items-center gap-3 hover:text-gray-200 transition duration-200"
-            >
-              <FaMoneyBillWave /> Fees
-            </Link>
-          </li>
-          <li>
-            <Link
-              to="/parent-dashboard/leave"
-              className="flex items-center gap-3 hover:text-gray-200 transition duration-200"
-            >
-              <FaUserTag /> Leave Status
-            </Link>
-          </li>
-          <li>
-            <Link
-              to="/parent-dashboard/notifications"
-              className="flex items-center gap-3 hover:text-gray-200 transition duration-200"
-            >
-              <FaBell /> Notifications
-            </Link>
-          </li>
-        </ul>
+  return (
+    <div className="w-72 bg-[#131B2F]/40 backdrop-blur-xl border-r border-white/5 p-6 flex flex-col justify-between min-h-screen sticky top-0">
+      <div>
+        <div className="flex items-center gap-3 mb-8 px-2">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <span className="text-white font-black text-xl">Z</span>
+          </div>
+          <div>
+            <h2 className="text-xl font-black text-white tracking-tight">
+              ZyrraStay
+            </h2>
+            <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Parent Panel</p>
+          </div>
+        </div>
+
+        {childName && (
+          <div className="px-4 py-3 mb-6 mx-2 rounded-xl bg-blue-600/10 border border-blue-500/20">
+            <p className="text-[10px] text-blue-400 font-bold uppercase tracking-wider mb-0.5">Linked Student</p>
+            <p className="text-sm font-semibold text-white truncate">{childName}</p>
+          </div>
+        )}
+
+        <nav>
+          <ul className="space-y-1.5">
+            {menuItems.map((item) => {
+              const isActive = location.pathname === item.path || (location.pathname === "/parent-dashboard/" && item.path === "/parent-dashboard");
+              return (
+                <li key={item.path}>
+                  <Link
+                    to={item.path}
+                    className={`flex items-center justify-between group px-4 py-3 rounded-2xl transition-all duration-300 ${isActive
+                        ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20"
+                        : "text-gray-400 hover:bg-white/5 hover:text-white"
+                      }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <item.icon size={20} className={isActive ? "text-white" : "group-hover:text-blue-400 transition-colors"} />
+                      <span className="font-bold text-sm">{item.label}</span>
+                    </div>
+                    {isActive && <ChevronRight size={14} className="opacity-50" />}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
       </div>
 
-      <button
-        onClick={logout}
-        className="flex items-center justify-center gap-2 bg-[#131B2F]/80 backdrop-blur-md border border-white/5 text-purple-400 py-2 px-4 rounded-lg mt-8 font-semibold w-full hover:bg-[#0B0F19]/50 transition duration-200"
-      >
-        <FaSignOutAlt /> Logout
-      </button>
+      <div className="space-y-4">
+        <button
+          onClick={logout}
+          className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl border border-white/5 bg-white/5 text-gray-400 font-bold text-sm hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all duration-300 group"
+        >
+          <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
+          Logout Account
+        </button>
+      </div>
     </div>
   );
 }

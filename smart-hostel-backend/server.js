@@ -1022,6 +1022,50 @@ db.query(parentLeaveTableSql, (err) => {
   if (err) console.error("Failed to create parent_leave_requests table", err);
 });
 
+// ensure rooms table exists
+db.query(`CREATE TABLE IF NOT EXISTS rooms (
+  room_number VARCHAR(20) PRIMARY KEY,
+  capacity INT NOT NULL,
+  occupied INT DEFAULT 0,
+  block VARCHAR(10),
+  floor VARCHAR(10),
+  facilities JSON,
+  status VARCHAR(20) DEFAULT 'Available'
+)`, (err) => err && console.error("Failed to create rooms table", err));
+
+// ensure complaints table exists
+db.query(`CREATE TABLE IF NOT EXISTS complaints (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  message TEXT NOT NULL,
+  category VARCHAR(50) DEFAULT 'general',
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+)`, (err) => err && console.error("Failed to create complaints table", err));
+
+// ensure leave_requests table exists
+db.query(`CREATE TABLE IF NOT EXISTS leave_requests (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  reason TEXT NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+)`, (err) => err && console.error("Failed to create leave_requests table", err));
+
+// ensure payments table exists
+db.query(`CREATE TABLE IF NOT EXISTS payments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  status VARCHAR(50),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+)`, (err) => err && console.error("Failed to create payments table", err));
+
 // helper to get child id for the logged-in parent
 function getChildId(parentId) {
   return new Promise((resolve, reject) => {
@@ -1228,8 +1272,6 @@ app.get("/parent/notifications", authMiddleware, async (req, res) => {
 
 /* ================= START SERVER ================= */
 
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+app.listen(2008, () => {
+  console.log("Server running on port 2008 🚀");
 });

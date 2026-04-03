@@ -29,19 +29,21 @@ function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
-      const studentsRes = await axios.get("http://localhost:2008/admin/students", config);
-      const roomsRes = await axios.get("http://localhost:2008/admin/rooms", config);
-      const complaintsRes = await axios.get("http://localhost:2008/admin/complaints", config);
-      const feesRes = await axios.get("http://localhost:2008/admin/fees", config);
+      const [studentsRes, roomsRes, complaintsRes, feesRes] = await Promise.allSettled([
+        axios.get("http://localhost:2008/admin/students", config),
+        axios.get("http://localhost:2008/admin/rooms", config),
+        axios.get("http://localhost:2008/admin/complaints", config),
+        axios.get("http://localhost:2008/admin/fees", config),
+      ]);
 
       setStats({
-        students: studentsRes.data.length,
-        rooms: roomsRes.data.length,
-        complaints: complaintsRes.data.length,
-        fees: feesRes.data.length,
+        students: studentsRes.status === 'fulfilled' ? studentsRes.value.data.length : 0,
+        rooms: roomsRes.status === 'fulfilled' ? roomsRes.value.data.length : 0,
+        complaints: complaintsRes.status === 'fulfilled' ? complaintsRes.value.data.length : 0,
+        fees: feesRes.status === 'fulfilled' ? feesRes.value.data.length : 0,
       });
     } catch (err) {
-      console.log(err);
+      console.log("Error evaluating stats:", err);
     }
   };
 
