@@ -1,26 +1,25 @@
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import axios from "axios";
 import {
   FaBars, FaTimes, FaQrcode, FaCreditCard, FaClipboardList, FaChartBar,
   FaUsers, FaCheckCircle, FaEnvelope, FaPhoneAlt, FaMapMarkerAlt,
   FaChevronRight, FaHome, FaDesktop
 } from "react-icons/fa";
 
-// Restored the original alert content as requested
-const originalAlert = {
-  title: "Attendance Marked!",
-  desc: "Rahul scanned QR in Room 102",
-  time: "Just now",
-  icon: FaCheckCircle,
-  color: "text-green-400",
-  bg: "bg-green-500/20",
-  border: "border-green-500/20"
-};
-
 export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [stats, setStats] = useState({ students: 0, rooms: 0, payments: 0 });
+  const [dynamicAlert, setDynamicAlert] = useState({
+    title: "Attendance Marked!",
+    desc: "System ready.",
+    time: "Just now",
+    icon: FaCheckCircle,
+    color: "text-green-400",
+    bg: "bg-green-500/20",
+    border: "border-green-500/20"
+  });
 
   // Handle Navbar Scroll Effect
   useEffect(() => {
@@ -31,38 +30,71 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Animate Stats
+  // Fetch Live Data & Animate Stats
   useEffect(() => {
-    const target = { students: 1250, rooms: 320, payments: 43000 };
-    const duration = 2000;
-    const steps = 50;
-    const stepTime = Math.max(15, duration / steps);
+    axios.get("http://localhost:2008/public/live-insights")
+      .then((res) => {
+        const target = {
+          students: res.data.students || 0,
+          rooms: res.data.rooms || 0,
+          payments: res.data.payments || 0
+        };
+        const duration = 2000;
+        const steps = 50;
+        const stepTime = Math.max(15, duration / steps);
 
-    const increments = {
-      students: Math.ceil(target.students / steps),
-      rooms: Math.ceil(target.rooms / steps),
-      payments: Math.ceil(target.payments / steps),
-    };
+        const increments = {
+          students: Math.ceil((target.students || 1) / steps) || 1,
+          rooms: Math.ceil((target.rooms || 1) / steps) || 1,
+          payments: Math.ceil((target.payments || 1) / steps) || 1,
+        };
 
-    let current = { students: 0, rooms: 0, payments: 0 };
-    const handle = setInterval(() => {
-      let done = true;
-      const next = { ...current };
+        let current = { students: 0, rooms: 0, payments: 0 };
+        const handle = setInterval(() => {
+          let done = true;
+          const next = { ...current };
 
-      Object.keys(target).forEach((key) => {
-        if (current[key] < target[key]) {
-          done = false;
-          next[key] = Math.min(target[key], current[key] + increments[key]);
+          Object.keys(target).forEach((key) => {
+            if (current[key] < target[key]) {
+              done = false;
+              next[key] = Math.min(target[key], current[key] + increments[key]);
+            }
+          });
+
+          current = next;
+          setStats(next);
+
+          if (done) clearInterval(handle);
+        }, stepTime);
+      })
+      .catch((err) => console.error("Error fetching live insights", err));
+
+    // Fetch Latest Activity
+    axios.get("http://localhost:2008/public/latest-activity")
+      .then((res) => {
+        if (res.data) {
+          const { name, roomNumber, created_at } = res.data;
+          
+          let timeAgo = "Just now";
+          if (created_at) {
+             const diffMins = Math.floor((new Date() - new Date(created_at)) / 60000);
+             if (diffMins > 0) timeAgo = `${diffMins} min ago`;
+             if (diffMins > 60) timeAgo = `${Math.floor(diffMins / 60)} hrs ago`;
+             if (diffMins > 1440) timeAgo = `${Math.floor(diffMins / 1440)} days ago`;
+          }
+
+          setDynamicAlert({
+            title: "Attendance Marked!",
+            desc: `${name} scanned QR in Room ${roomNumber || 'N/A'}`,
+            time: timeAgo,
+            icon: FaCheckCircle,
+            color: "text-green-400",
+            bg: "bg-green-500/20",
+            border: "border-green-500/20"
+          });
         }
-      });
-
-      current = next;
-      setStats(next);
-
-      if (done) clearInterval(handle);
-    }, stepTime);
-
-    return () => clearInterval(handle);
+      })
+      .catch((err) => console.error("Error fetching latest activity", err));
   }, []);
 
   return (
@@ -252,13 +284,13 @@ export default function Home() {
               {/* Floating Alert Sub-card */}
               <div className="absolute -bottom-24 right-4 lg:-bottom-20 lg:-right-12 bg-[#1A233A] border border-white/10 shadow-[0_15px_30px_rgba(0,0,0,0.6)] rounded-2xl p-4 w-64 animate-[bounce_5s_infinite] hover:animate-none transition-all duration-500 cursor-pointer group z-30">
                 <div className="flex gap-4 items-center">
-                  <div className={`${originalAlert.bg} ${originalAlert.color} p-2.5 rounded-xl border ${originalAlert.border} group-hover:scale-110 transition-transform duration-300`}>
-                    <originalAlert.icon className="text-xl" />
+                  <div className={`${dynamicAlert.bg} ${dynamicAlert.color} p-2.5 rounded-xl border ${dynamicAlert.border} group-hover:scale-110 transition-transform duration-300`}>
+                    <dynamicAlert.icon className="text-xl" />
                   </div>
                   <div className="flex-1 transition-all duration-300">
-                    <h5 className="font-bold text-sm text-white">{originalAlert.title}</h5>
-                    <p className="text-xs text-gray-400 mt-0.5">{originalAlert.desc}</p>
-                    <p className="text-[10px] text-purple-400 mt-1 font-medium">{originalAlert.time}</p>
+                    <h5 className="font-bold text-sm text-white">{dynamicAlert.title}</h5>
+                    <p className="text-xs text-gray-400 mt-0.5">{dynamicAlert.desc}</p>
+                    <p className="text-[10px] text-purple-400 mt-1 font-medium">{dynamicAlert.time}</p>
                   </div>
                 </div>
               </div>

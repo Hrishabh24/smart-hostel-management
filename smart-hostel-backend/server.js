@@ -65,6 +65,31 @@ app.get("/public/latest-activity", (req, res) => {
   });
 });
 
+/* ================= PUBLIC LIVE INSIGHTS (For Home Page Demo) ================= */
+app.get("/public/live-insights", (req, res) => {
+  const studentsQuery = "SELECT COUNT(*) as count FROM users WHERE role = 'student'";
+  const roomsQuery = "SELECT SUM(capacity - occupied) as count FROM rooms";
+  const paymentsQuery = "SELECT SUM(amount) as total FROM payments WHERE status = 'success'";
+
+  db.query(studentsQuery, (err, studentRes) => {
+    if (err) return res.status(500).json({ message: "Server error" });
+    
+    db.query(roomsQuery, (err, roomRes) => {
+      if (err) return res.status(500).json({ message: "Server error" });
+
+      db.query(paymentsQuery, (err, paymentRes) => {
+        if (err) return res.status(500).json({ message: "Server error" });
+
+        res.json({
+          students: studentRes[0].count || 0,
+          rooms: roomRes[0].count || 0,
+          payments: paymentRes[0].total || 0,
+        });
+      });
+    });
+  });
+});
+
 /* ================= REGISTER ================= */
 
 app.post("/register", async (req, res) => {
