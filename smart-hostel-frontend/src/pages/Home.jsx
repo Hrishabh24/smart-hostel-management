@@ -361,8 +361,13 @@ export default function Home() {
       </main>
 
       {/* FOOTER */}
-      <footer className="bg-[#080C14] border-t border-white/5 pt-20 pb-10 z-20 relative">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 grid gap-12 lg:grid-cols-12 md:grid-cols-2">
+      <footer className="relative bg-[#0B0F19]/80 backdrop-blur-3xl border-t border-white/10 pt-20 pb-10 z-20 mt-20 overflow-hidden">
+        {/* Footer Ambient Glow */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[80%] md:w-1/2 h-px bg-gradient-to-r from-transparent via-purple-500/50 to-transparent"></div>
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 grid gap-12 lg:grid-cols-12 md:grid-cols-2 relative z-10">
 
           <div className="lg:col-span-4">
             <div className="flex items-center gap-3 mb-6">
