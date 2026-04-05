@@ -21,29 +21,47 @@ function Fees() {
   const [error, setError] = useState(null);
   const [paid, setPaid] = useState(false);
   const [paymentInfo, setPaymentInfo] = useState(null);
+  const [studentName, setStudentName] = useState("Student");
   const token = localStorage.getItem("token");
 
   useEffect(() => {
-    const fetchStatus = async () => {
+    const fetchStatusAndProfile = async () => {
       if (!token) {
         setFetchingStatus(false);
         return;
       }
       try {
-        const { data } = await axios.get("http://localhost:2008/payment-status", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (data.paid) {
-          setPaid(true);
-          setPaymentInfo({ amount: data.amount, date: data.date });
+        // Fetch payment status
+        // Since /payment-status might not exist or work this way, we'll try it
+        try {
+          const { data: payData } = await axios.get("http://localhost:2008/payment-status", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (payData && payData.paid) {
+            setPaid(true);
+            setPaymentInfo({ amount: payData.amount, date: payData.date });
+          }
+        } catch (payErr) {
+          console.error("Could not fetch payment status:", payErr);
         }
-      } catch (err) {
-        console.error("Could not fetch payment status:", err);
+
+        // Fetch user profile for name
+        try {
+          const { data: profile } = await axios.get("http://localhost:2008/student/profile", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (profile && profile.name) {
+            setStudentName(profile.name);
+          }
+        } catch (profileErr) {
+          console.error("Could not fetch student profile:", profileErr);
+        }
+
       } finally {
         setFetchingStatus(false);
       }
     };
-    fetchStatus();
+    fetchStatusAndProfile();
   }, [token]);
 
   const handlePayment = async () => {
@@ -115,7 +133,7 @@ function Fees() {
       transactionId: `TXN${Math.floor(100000 + Math.random() * 900000)}`,
       date: new Date(paymentInfo?.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
       amount: paymentInfo?.amount || 5000,
-      studentName: "Resident User", // In real app, get from profile
+      studentName: studentName,
       hostelName: "ZyrraStay Premium"
     };
 
@@ -124,53 +142,209 @@ function Fees() {
       <html>
         <head>
           <title>Payment Receipt - ZyrraStay</title>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet">
           <style>
-            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #333; }
-            .receipt-card { max-width: 600px; margin: 0 auto; border: 2px solid #eee; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-            .header { text-align: center; border-bottom: 2px solid #f4f4f4; padding-bottom: 20px; margin-bottom: 30px; }
-            .logo { font-size: 24px; font-weight: 900; color: #3b82f6; letter-spacing: -1px; }
-            .title { font-size: 14px; color: #666; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; }
-            .details { margin-bottom: 30px; }
-            .row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f9f9f9; }
-            .label { font-weight: 600; color: #888; font-size: 14px; }
-            .value { font-weight: 700; color: #222; font-size: 14px; }
-            .total-row { background: #f8faff; padding: 20px; border-radius: 12px; margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
-            .total-label { font-weight: 800; color: #1e40af; }
-            .total-value { font-size: 24px; font-weight: 900; color: #1e40af; }
-            .footer { text-align: center; margin-top: 40px; font-size: 12px; color: #aaa; }
-            .stamp { color: #10b981; font-weight: 900; border: 3px solid #10b981; display: inline-block; padding: 5px 15px; border-radius: 8px; transform: rotate(-10deg); margin-top: 20px; }
-            @media print { .no-print { display: none; } }
+            body { 
+              font-family: 'Inter', sans-serif; 
+              padding: 40px; 
+              color: #1a1a2e; 
+              background-color: #f3f4f6;
+              height: 100vh;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              margin: 0;
+            }
+            .receipt-wrapper {
+              background: #ffffff; 
+              width: 100%;
+              max-width: 650px; 
+              border-radius: 24px; 
+              box-shadow: 0 40px 80px rgba(0,0,0,0.08); 
+              position: relative; 
+              overflow: hidden;
+            }
+            .header-strip {
+              background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+              height: 12px;
+              width: 100%;
+            }
+            .content {
+              padding: 50px 60px;
+              position: relative;
+              background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+              background-size: 20px 20px;
+              background-position: -10px -10px;
+            }
+            .watermark { 
+              position: absolute; 
+              top: 40%; 
+              left: 50%; 
+              transform: translate(-50%, -50%) rotate(-30deg); 
+              font-size: 130px; 
+              opacity: 0.02; 
+              font-weight: 900; 
+              letter-spacing: -2px;
+              pointer-events: none; 
+              text-transform: uppercase; 
+              color: #1e3a8a;
+            }
+            .header { 
+              display: flex; 
+              justify-content: space-between; 
+              align-items: center;
+              border-bottom: 2px dashed #e2e8f0; 
+              padding-bottom: 30px; 
+              margin-bottom: 40px; 
+              position: relative; 
+              z-index: 1; 
+            }
+            .logo { 
+              font-size: 32px; 
+              font-weight: 900; 
+              background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              letter-spacing: -1px; 
+            }
+            .logo-sub { font-size: 10px; letter-spacing: 4px; color: #64748b; font-weight: 600; text-transform: uppercase; margin-top: -2px; display: block; }
+            .title { 
+              font-size: 12px; 
+              color: #475569; 
+              background: #f1f5f9;
+              padding: 8px 16px;
+              border-radius: 8px;
+              font-weight: 800; 
+              text-transform: uppercase; 
+              letter-spacing: 2px; 
+            }
+            .details { 
+              margin-bottom: 40px; 
+              position: relative; 
+              z-index: 1; 
+              background: #fff;
+              border-radius: 16px;
+              padding: 20px;
+              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+              border: 1px solid #f1f5f9;
+            }
+            .row { 
+              display: flex; 
+              justify-content: space-between; 
+              padding: 16px 10px; 
+              border-bottom: 1px solid #f8fafc; 
+            }
+            .row:last-child { border-bottom: none; }
+            .label { font-weight: 600; color: #64748b; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+            .value { font-weight: 800; color: #0f172a; font-size: 15px; }
+            .student-name { color: #1e40af; }
+            .total-row { 
+              background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); 
+              padding: 30px; 
+              border-radius: 16px; 
+              margin-top: 20px; 
+              display: flex; 
+              justify-content: space-between; 
+              align-items: center; 
+              border: 1px solid #e2e8f0;
+            }
+            .total-label { font-weight: 800; color: #334155; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+            .total-value { font-size: 32px; font-weight: 900; color: #1e3a8a; }
+            .footer { 
+              text-align: center; 
+              margin-top: 50px; 
+              padding-top: 30px;
+              border-top: 1px solid #f1f5f9;
+              font-size: 11px; 
+              color: #94a3b8; 
+              line-height: 1.6;
+              font-weight: 400;
+            }
+            .stamp { 
+              color: #10b981; 
+              font-weight: 900; 
+              font-size: 24px;
+              border: 4px solid #10b981; 
+              display: inline-block; 
+              padding: 8px 24px; 
+              border-radius: 12px; 
+              transform: rotate(-5deg); 
+              margin-top: 20px; 
+              letter-spacing: 4px;
+              box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
+              background: rgba(16, 185, 129, 0.05);
+            }
+            .barcode {
+              text-align: center;
+              margin-top: 30px;
+              opacity: 0.5;
+            }
+            .barcode-lines {
+              display: inline-block;
+              height: 40px;
+              width: 2px;
+              background: #000;
+              box-shadow: 4px 0 0 #000, 10px 0 0 #000, 14px 0 0 #000, 20px 0 0 #000, 26px 0 0 #000, 28px 0 0 #000, 36px 0 0 #000, 40px 0 0 #000, 48px 0 0 #000, 52px 0 0 #000, 60px 0 0 #000, 66px 0 0 #000, 72px 0 0 #000, 80px 0 0 #000, 84px 0 0 #000, 92px 0 0 #000, 98px 0 0 #000, 100px 0 0 #000, 108px 0 0 #000, 114px 0 0 #000, 120px 0 0 #000, 124px 0 0 #000, 130px 0 0 #000, 136px 0 0 #000, 142px 0 0 #000;
+            }
+            @media print { 
+              body { background-color: white; padding: 0; }
+              .receipt-wrapper { box-shadow: none; max-width: 100%; border-radius: 0; }
+              .no-print { display: none; } 
+            }
           </style>
         </head>
         <body>
-          <div class="receipt-card">
-            <div class="header">
-              <div class="logo">ZYRRASTAY</div>
-              <div class="title">Payment Receipt</div>
-            </div>
-            <div class="details">
-              <div class="row"><span class="label">Transaction ID</span><span class="value">${receiptData.transactionId}</span></div>
-              <div class="row"><span class="label">Payment Date</span><span class="value">${receiptData.date}</span></div>
-              <div class="row"><span class="label">Student Name</span><span class="value">${receiptData.studentName}</span></div>
-              <div class="row"><span class="label">Hostel Unit</span><span class="value">${receiptData.hostelName}</span></div>
-              <div class="row"><span class="label">Status</span><span class="value" style="color: #10b981;">SUCCESSFUL</span></div>
-            </div>
-            <div class="total-row">
-              <span class="total-label">Total Amount Paid</span>
-              <span class="total-value">₹${receiptData.amount}.00</span>
-            </div>
-            <div style="text-align: center;">
-              <div class="stamp">PAID</div>
-            </div>
-            <div class="footer">
-              This is a computer-generated receipt and does not require a signature.<br>
-              © 2026 ZyrraStay Premium Residencies. All rights reserved.
+          <div class="receipt-wrapper">
+            <div class="header-strip"></div>
+            <div class="content">
+              <div class="watermark">ZYRRASTAY</div>
+              
+              <div class="header">
+                <div>
+                  <div class="logo">ZYRRASTAY</div>
+                  <span class="logo-sub">Premium Residencies</span>
+                </div>
+                <div class="title">Official Receipt</div>
+              </div>
+
+              <div class="details">
+                <div class="row"><span class="label">Transaction ID</span><span class="value">${receiptData.transactionId}</span></div>
+                <div class="row"><span class="label">Payment Date</span><span class="value">${receiptData.date}</span></div>
+                <div class="row"><span class="label">Student Name</span><span class="value student-name">${receiptData.studentName}</span></div>
+                <div class="row"><span class="label">Hostel Unit</span><span class="value">${receiptData.hostelName}</span></div>
+                <div class="row"><span class="label">Status</span><span class="value" style="color: #10b981; display: flex; align-items: center; gap: 6px;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                  SUCCESSFUL
+                </span></div>
+              </div>
+
+              <div class="total-row">
+                <span class="total-label">Total Amount Paid</span>
+                <span class="total-value">₹${receiptData.amount}.00</span>
+              </div>
+
+              <div style="text-align: center;">
+                <div class="stamp">PAID</div>
+              </div>
+
+              <div class="barcode">
+                <div class="barcode-lines"></div>
+                <div style="font-size: 10px; font-family: monospace; margin-top: 8px; letter-spacing: 2px; color: #888;">${receiptData.transactionId}</div>
+              </div>
+
+              <div class="footer">
+                This is a computer-generated receipt and does not require a physical signature.<br>
+                For any discrepancies, contact billing@zyrrastay.com<br>
+                <strong>© 2026 ZyrraStay Premium Residencies. All rights reserved.</strong>
+              </div>
             </div>
           </div>
           <script>
             window.onload = () => {
-              window.print();
-              setTimeout(() => { window.close(); }, 500);
+              setTimeout(() => { 
+                window.print();
+                setTimeout(() => { window.close(); }, 500);
+              }, 300); // Slight delay for fonts to load
             };
           </script>
         </body>
@@ -189,6 +363,15 @@ function Fees() {
       </div>
     );
   }
+
+  const todayDate = new Date();
+  const currentDay = todayDate.getDate();
+  const currentMonthStr = todayDate.toLocaleString('default', { month: 'long' });
+  const currentYearStr = todayDate.getFullYear();
+  const isLate = currentDay > 15;
+  const lateDays = isLate ? currentDay - 15 : 0;
+  const lateFeeAmount = lateDays * 100;
+  const totalAmountDue = 5000 + lateFeeAmount;
 
   return (
     <div className="flex bg-[#0B0F19] min-h-screen text-gray-100 selection:bg-blue-500/30">
@@ -259,14 +442,16 @@ function Fees() {
                       </div>
                       <div>
                         <h2 className="text-2xl font-bold">Maintenance Fee</h2>
-                        <p className="text-gray-400 text-sm">March 2026 Residency Billing</p>
+                        <p className="text-gray-400 text-sm">{currentMonthStr} {currentYearStr} Residency Billing</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1">Due In</p>
-                      <div className="flex items-center gap-1 text-yellow-500 font-bold">
-                        <Clock size={14} />
-                        <span>12 Days</span>
+                      <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1">
+                        {isLate ? "Status" : "Due In"}
+                      </p>
+                      <div className={`flex items-center gap-1 font-bold ${isLate ? 'text-red-500' : 'text-yellow-500'}`}>
+                        {isLate ? <AlertCircle size={14} /> : <Clock size={14} />}
+                        <span>{isLate ? `Overdue by ${lateDays} days` : `${15 - currentDay} Days`}</span>
                       </div>
                     </div>
                   </div>
@@ -280,9 +465,15 @@ function Fees() {
                       <span>WiFi & Shared Amenities</span>
                       <span>₹800.00</span>
                     </div>
+                    {isLate && (
+                      <div className="flex justify-between text-red-400 font-medium text-sm">
+                        <span>Late Fees (₹100/day for {lateDays} days)</span>
+                        <span>₹{lateFeeAmount.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="pt-4 border-t border-white/5 flex justify-between items-end">
                       <span className="text-white font-bold text-lg">Total Amount Due</span>
-                      <span className="text-3xl font-black text-white">₹5,000.00</span>
+                      <span className={`text-3xl font-black ${isLate ? 'text-red-400' : 'text-white'}`}>₹{totalAmountDue.toLocaleString()}.00</span>
                     </div>
                   </div>
 
@@ -299,7 +490,7 @@ function Fees() {
                     ) : (
                       <>
                         <ShieldCheck size={22} />
-                        Pay Securely Now
+                        Pay Securely Now (₹{totalAmountDue.toLocaleString()})
                       </>
                     )}
                   </button>

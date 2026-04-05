@@ -575,8 +575,15 @@ app.post("/create-order", authMiddleware, async (req, res) => {
       return res.status(400).json({ message: "Fees already paid" });
     }
 
+    const today = new Date();
+    let lateFees = 0;
+    if (today.getDate() > 15) {
+      lateFees = (today.getDate() - 15) * 100;
+    }
+    const finalAmount = 5000 + lateFees;
+
     const options = {
-      amount: 5000 * 100,
+      amount: finalAmount * 100,
       currency: "INR",
       receipt: "receipt_" + Date.now(),
     };
