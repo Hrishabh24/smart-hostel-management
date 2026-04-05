@@ -24,44 +24,21 @@ function Room() {
           headers: { Authorization: `Bearer ${token}` },
         };
         
-        // Try multiple endpoints to get room data
-        let roomData = null;
-        
         try {
           const res = await axios.get("http://localhost:2008/student/room", config);
-          roomData = res.data;
+          setRoom(res.data);
+          setError(null);
         } catch (err) {
-          // Try alternative endpoint
-          if (err.response?.status !== 404) {
-            throw err;
-          }
-          try {
-            const res = await axios.get("http://localhost:2008/student/room-details", config);
-            roomData = res.data;
-          } catch (err2) {
-            console.warn("Room endpoints not available, using mock data");
-            roomData = null;
+          if (err.response?.status === 404) {
+            setRoom(null);
+            setError(null);
+          } else {
+            console.error("Error fetching room:", err);
+            setError("Failed to load room details");
           }
         }
-        
-        // Use mock data if backend endpoint fails
-        if (!roomData) {
-          roomData = {
-            roomNumber: "101",
-            block: "A",
-            floor: "1st",
-            capacity: 2,
-            occupants: 2,
-            roommates: ["John Doe", "Jane Smith"],
-            facilities: ["WiFi", "AC", "Study Table", "Attached Bathroom"],
-            status: "Occupied",
-          };
-        }
-        
-        setRoom(roomData);
-        setError(null);
       } catch (err) {
-        console.error("Error fetching room:", err);
+        console.error("Error in fetchRoom:", err);
         setError("Failed to load room details");
       } finally {
         setLoading(false);
@@ -86,6 +63,18 @@ function Room() {
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded-lg shadow-[0_4px_20px_rgba(0,0,0,0.3)] mb-6">
               <p className="font-semibold">❌ {error}</p>
+            </div>
+          )}
+
+          {!loading && !error && !room && (
+            <div className="bg-[#131B2F]/80 backdrop-blur-md border border-white/5 p-10 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.3)] text-center flex flex-col items-center justify-center min-h-[400px]">
+              <div className="w-24 h-24 bg-[#0B0F19]/80 rounded-full flex justify-center items-center mb-6 border border-white/5 shadow-[0_0_20px_rgba(168,85,247,0.15)]">
+                 <span className="text-5xl opacity-80">🛏️</span>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-200 mb-3">Room Not Allotted</h2>
+              <p className="text-gray-400 max-w-md mx-auto leading-relaxed">
+                You haven't been assigned a room yet. Please contact the warden or administration desk for more information regarding your room allocation.
+              </p>
             </div>
           )}
 
