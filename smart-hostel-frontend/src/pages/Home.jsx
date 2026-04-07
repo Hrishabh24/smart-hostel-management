@@ -74,13 +74,13 @@ export default function Home() {
       .then((res) => {
         if (res.data) {
           const { name, roomNumber, created_at } = res.data;
-          
+
           let timeAgo = "Just now";
           if (created_at) {
-             const diffMins = Math.floor((new Date() - new Date(created_at)) / 60000);
-             if (diffMins > 0) timeAgo = `${diffMins} min ago`;
-             if (diffMins > 60) timeAgo = `${Math.floor(diffMins / 60)} hrs ago`;
-             if (diffMins > 1440) timeAgo = `${Math.floor(diffMins / 1440)} days ago`;
+            const diffMins = Math.floor((new Date() - new Date(created_at)) / 60000);
+            if (diffMins > 0) timeAgo = `${diffMins} min ago`;
+            if (diffMins > 60) timeAgo = `${Math.floor(diffMins / 60)} hrs ago`;
+            if (diffMins > 1440) timeAgo = `${Math.floor(diffMins / 1440)} days ago`;
           }
 
           setDynamicAlert({
@@ -363,7 +363,7 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-6 lg:px-8 mt-24 lg:mt-40 relative z-20">
           <div className="bg-[#131B2F]/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 lg:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/10 rounded-full blur-[80px] pointer-events-none"></div>
-            
+
             <div className="text-center mb-10">
               <h2 className="text-sm font-bold tracking-[0.2em] text-purple-400 uppercase mb-3">Feedback</h2>
               <h3 className="text-3xl lg:text-4xl font-bold text-white">How can we improve?</h3>
@@ -494,19 +494,19 @@ function FeedbackForm() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-medium text-gray-400 mb-1">Your Name</label>
-          <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-[#0B0F19]/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-colors" placeholder="John Doe" />
+          <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-[#0B0F19]/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-colors" placeholder="John Doe" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-400 mb-1">Email Address</label>
-          <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-[#0B0F19]/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-colors" placeholder="john@example.com" />
+          <input required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full bg-[#0B0F19]/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-colors" placeholder="john@example.com" />
         </div>
       </div>
-      
+
       <div>
         <label className="block text-xs font-medium text-gray-400 mb-2">Rating</label>
         <div className="flex gap-2">
-          {[1,2,3,4,5].map(star => (
-            <button type="button" key={star} onClick={() => setFormData({...formData, rating: star})} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${formData.rating >= star ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50 scale-110' : 'bg-[#0B0F19]/50 text-gray-500 border border-white/10 hover:bg-white/10'}`}>
+          {[1, 2, 3, 4, 5].map(star => (
+            <button type="button" key={star} onClick={() => setFormData({ ...formData, rating: star })} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${formData.rating >= star ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50 scale-110' : 'bg-[#0B0F19]/50 text-gray-500 border border-white/10 hover:bg-white/10'}`}>
               ★
             </button>
           ))}
@@ -515,7 +515,7 @@ function FeedbackForm() {
 
       <div>
         <label className="block text-xs font-medium text-gray-400 mb-1">Message</label>
-        <textarea required value={formData.message} onChange={e => setFormData({...formData, message: e.target.value})} rows="4" className="w-full resize-none bg-[#0B0F19]/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-colors" placeholder="Tell us what you think..." />
+        <textarea required value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} rows="4" className="w-full resize-none bg-[#0B0F19]/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-colors" placeholder="Tell us what you think..." />
       </div>
 
       {status === 'error' && <p className="text-red-400 text-sm">Failed to submit feedback. Try again.</p>}
