@@ -1,9 +1,13 @@
-import { useEffect, useState } from "react";
+/* eslint-disable */
+import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { QRCodeSVG as QRCode } from "qrcode.react";
 
 function AdminAttendance() {
   const token = localStorage.getItem("token");
+  const config = {
+    headers: { Authorization: `Bearer ${token}` }
+  };
   const [students, setStudents] = useState([]);
   const [qrData, setQrData] = useState("");
   const [loading, setLoading] = useState(true);
