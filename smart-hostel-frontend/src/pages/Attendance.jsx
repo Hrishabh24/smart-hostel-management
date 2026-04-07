@@ -51,50 +51,70 @@ function Attendance() {
     const onScanSuccess = async (decodedText) => {
       if (isProcessing) return;
       
-      try {
-        setIsProcessing(true);
-        setStatus("Processing scan...");
-        console.log("QR Scanned:", decodedText);
-        
-        const response = await axios.post(
-          "http://localhost:2008/student/mark-attendance",
-          { qrData: decodedText.trim() },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+      setIsProcessing(true);
+      setStatus("Acquiring location...");
+      console.log("QR Scanned:", decodedText);
 
-        console.log("Attendance response:", response.data);
-        setMessage("Attendance Marked ✅ Successfully");
-        setSuccessCount(prev => prev + 1);
-        setStatus("Success! Attendance recorded.");
-        
-        // Stop the scanner after successful mark
-        try {
-          await scanner.clear();
-        } catch (e) { console.warn("Scanner clear failed:", e); }
-        
-        alert("Attendance Marked ✅ Successfully");
-      } catch (err) {
-        console.error("Attendance error:", err);
-        const errorMsg = err.response?.data?.message || "Failed to mark attendance";
-        
-        if (errorMsg.toLowerCase().includes("already marked")) {
-          setMessage("Attendance already marked for today 📅");
-          setStatus("Already recorded today.");
-          try {
-            await scanner.clear();
-          } catch (e) { }
-          alert("Attendance was already marked for today.");
-        } else {
-          setMessage(`Error: ${errorMsg}`);
-          setStatus("Error occurred. Trying again...");
-          setTimeout(() => setIsProcessing(false), 3000);
-        }
-
-        if (err.response?.status === 401) {
-          localStorage.clear();
-          navigate("/login");
-        }
+      if (!navigator.geolocation) {
+        setMessage("Geolocation is not supported by your browser");
+        setStatus("Geolocation error");
+        setIsProcessing(false);
+        return;
       }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const { latitude, longitude } = position.coords;
+            setStatus("Validating location & QR...");
+            
+            const response = await axios.post(
+              "http://localhost:2008/student/mark-attendance",
+              { qrData: decodedText.trim(), latitude, longitude },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            console.log("Attendance response:", response.data);
+            setMessage("Attendance Marked ✅ Successfully");
+            setSuccessCount(prev => prev + 1);
+            setStatus("Success! Attendance recorded.");
+            
+            try {
+              await scanner.clear();
+            } catch (e) { console.warn("Scanner clear failed:", e); }
+            
+            alert("Attendance Marked ✅ Successfully");
+          } catch (err) {
+            console.error("Attendance error:", err);
+            let errorMsg = err.response?.data?.message || "Failed to mark attendance";
+            
+            if (errorMsg.toLowerCase().includes("already marked")) {
+              setMessage("Attendance already marked for today 📅");
+              setStatus("Already recorded today.");
+              try {
+                await scanner.clear();
+              } catch (e) { }
+              alert("Attendance was already marked for today.");
+            } else {
+              setMessage(`Error: ${errorMsg}`);
+              setStatus("Error occurred. Please try again.");
+              setTimeout(() => setIsProcessing(false), 4000);
+            }
+
+            if (err.response?.status === 401) {
+              localStorage.clear();
+              navigate("/login");
+            }
+          }
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
+          setMessage("Location access required to mark attendance.");
+          setStatus("Location access denied.");
+          setTimeout(() => setIsProcessing(false), 4000);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
     };
 
     const onScanError = (errorMessage) => {

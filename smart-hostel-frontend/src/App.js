@@ -1,4 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import axios from "axios";
 import Home from "./pages/Home";
 import Login from "./Login";
 import AdminLogin from "./pages/admin/AdminLogin";
@@ -45,7 +47,49 @@ import ParentLeave from "./pages/parent/ParentLeave";
 import ParentNotifications from "./pages/parent/ParentNotifications";
 import ProtectedRoute from "./ProtectedRoute";
 
+// Add global Axios 401 interceptor for automatic logout
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      localStorage.clear();
+      if (window.location.pathname !== '/login') {
+        window.location.href = "/login";
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 function App() {
+  // Session expiry check function
+  useEffect(() => {
+    const checkSession = () => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          const expiryTime = payload.exp * 1000;
+          if (Date.now() > expiryTime) {
+            localStorage.clear();
+            if (window.location.pathname !== '/login') {
+               window.location.href = "/login";
+            }
+          }
+        } catch (err) {
+          localStorage.clear();
+          if (window.location.pathname !== '/login') {
+             window.location.href = "/login";
+          }
+        }
+      }
+    };
+    
+    checkSession();
+    const interval = setInterval(checkSession, 15000); // Check every 15 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
   return (
     <Router>
       <Routes>

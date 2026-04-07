@@ -25,7 +25,19 @@ const storage = multer.diskStorage({
     cb(null, `${req.user ? req.user.id : "user"}-${Date.now()}${path.extname(file.originalname)}`);
   },
 });
-const upload = multer({ storage });
+const fileFilter = (req, file, cb) => {
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Invalid file type. Only JPG, PNG, WEBP files are allowed."));
+  }
+};
+const upload = multer({ 
+  storage, 
+  fileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 // keep secret in environment variable for flexibility
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
@@ -44,6 +56,42 @@ app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// --- Custom Rate Limiter Middleware ---
+const rateLimits = new Map();
+const loginRateLimiter = (req, res, next) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000; // 15 minutes
+  const maxRequests = 5;
+
+  if (!rateLimits.has(ip)) {
+    rateLimits.set(ip, { count: 1, resetTime: now + windowMs });
+    return next();
+  }
+
+  const limitData = rateLimits.get(ip);
+  if (now > limitData.resetTime) {
+    limitData.count = 1;
+    limitData.resetTime = now + windowMs;
+    return next();
+  }
+
+  limitData.count += 1;
+  if (limitData.count > maxRequests) {
+    return res.status(429).json({ message: "Too many login attempts from this IP, please try again after 15 minutes." });
+  }
+  next();
+};
+
+// Periodic cleanup of rate limit map to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, data] of rateLimits.entries()) {
+    if (now > data.resetTime) rateLimits.delete(ip);
+  }
+}, 15 * 60 * 1000); // Clean every 15 minutes
+
+
 /* ================= ROOT ================= */
 
 app.get("/", (req, res) => {
@@ -53,7 +101,7 @@ app.get("/", (req, res) => {
 /* ================= PUBLIC ACTIVITY (For Home Page Demo) ================= */
 app.get("/public/latest-activity", (req, res) => {
   const query = `
-    SELECT u.name, u.roomNumber, a.created_at
+    SELECT u.name, a.created_at
     FROM attendance a
     JOIN users u ON a.user_id = u.id
     ORDER BY a.created_at DESC
@@ -61,7 +109,17 @@ app.get("/public/latest-activity", (req, res) => {
   `;
   db.query(query, (err, results) => {
     if (err) return res.status(500).json({ message: "Server error" });
-    res.json(results[0] || null);
+    if (results[0]) {
+      // Anonymize data slightly for privacy
+      const firstName = results[0].name.split(' ')[0];
+      res.json({
+        name: firstName + ' ***',
+        roomNumber: 'Hidden for privacy',
+        created_at: results[0].created_at
+      });
+    } else {
+      res.json(null);
+    }
   });
 });
 
@@ -93,7 +151,8 @@ app.get("/public/live-insights", (req, res) => {
 /* ================= REGISTER ================= */
 
 app.post("/register", async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password } = req.body; // Removed 'role' from direct destructuring to prevent privilege escalation
+  const role = "student"; // Hardcode standard registration as student
   const normalizedEmail = String(email || "").trim().toLowerCase();
 
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -110,7 +169,7 @@ app.post("/register", async (req, res) => {
 
 /* ================= LOGIN ================= */
 
-app.post("/login", (req, res) => {
+app.post("/login", loginRateLimiter, (req, res) => {
   const { email, password } = req.body;
   const normalizedEmail = String(email || "").trim().toLowerCase();
 
@@ -132,7 +191,7 @@ app.post("/login", (req, res) => {
     const token = jwt.sign(
       { id: user.id, role: user.role },
       JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "5m" }
     );
 
     res.json({
@@ -145,7 +204,7 @@ app.post("/login", (req, res) => {
 
 /* ================= FORGOT PASSWORD ================= */
 
-app.post("/forgot-password", (req, res) => {
+app.post("/forgot-password", loginRateLimiter, (req, res) => {
   const { email } = req.body;
 
   const query = "SELECT id FROM users WHERE email = ?";
@@ -273,15 +332,23 @@ app.put("/student/profile", authMiddleware, (req, res) => {
   });
 });
 
-app.post("/student/upload-profile-pic", authMiddleware, upload.single("profilePic"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: "No file uploaded" });
-  }
-  const imageUrl = `/uploads/${req.file.filename}`;
-  const query = "UPDATE users SET profilePic = ? WHERE id = ?";
-  db.query(query, [imageUrl, req.user.id], (err) => {
-    if (err) return res.status(500).json({ message: "Error saving profile picture" });
-    res.json({ message: "Profile picture updated successfully", profilePic: imageUrl });
+app.post("/student/upload-profile-pic", authMiddleware, (req, res) => {
+  upload.single("profilePic")(req, res, (err) => {
+    if (err) {
+      // Handle multer errors (like fileFilter throwing error)
+      return res.status(400).json({ message: err.message || "File upload failed" });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    
+    const imageUrl = `/uploads/${req.file.filename}`;
+    const query = "UPDATE users SET profilePic = ? WHERE id = ?";
+    db.query(query, [imageUrl, req.user.id], (dbErr) => {
+      if (dbErr) return res.status(500).json({ message: "Error saving profile picture" });
+      res.json({ message: "Profile picture updated successfully", profilePic: imageUrl });
+    });
   });
 });
 
@@ -427,26 +494,54 @@ app.get("/admin/complaints", authMiddleware, (req, res) => {
 /* ================= STUDENT MARK ATTENDANCE ================= */
 
 app.post("/student/mark-attendance", authMiddleware, (req, res) => {
-  let { qrData } = req.body;
+  let { qrData, latitude, longitude } = req.body;
 
   if (!qrData) {
     return res.status(400).json({ message: "No QR data provided" });
   }
 
-  // Trim and normalize the incoming QR data just in case
   qrData = String(qrData).trim();
 
-  // Get today's date in YYYY-MM-DD format consistently
+  // Verify dynamic QR code (JWT with 2m expiry)
+  try {
+    const decoded = jwt.verify(qrData, JWT_SECRET);
+    if (decoded.type !== "attendance_qr") throw new Error("Invalid token type");
+  } catch (err) {
+    console.error("[ATTENDANCE] QR Verification Failed:", err.message);
+    return res.status(400).json({ message: "Expired or Invalid QR Code. Please scan a fresh one." });
+  }
+
+  // Geofencing Check
+  if (!latitude || !longitude) {
+    return res.status(400).json({ message: "Location required. Please allow location access." });
+  }
+
+  // Define Hostel Coordinates (Defaulting to Delhi coords if not in ENV)
+  const HOSTEL_LAT = parseFloat(process.env.HOSTEL_LAT || "28.6139");
+  const HOSTEL_LON = parseFloat(process.env.HOSTEL_LON || "77.2090");
+  const ALLOWED_RADIUS = 500; // meters
+
+  // Haversine formula
+  const R = 6371e3; // metres
+  const r1 = latitude * Math.PI/180;
+  const r2 = HOSTEL_LAT * Math.PI/180;
+  const dp = (HOSTEL_LAT-latitude) * Math.PI/180;
+  const dl = (HOSTEL_LON-longitude) * Math.PI/180;
+
+  const a = Math.sin(dp/2) * Math.sin(dp/2) +
+            Math.cos(r1) * Math.cos(r2) *
+            Math.sin(dl/2) * Math.sin(dl/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const distance = R * c;
+
+  console.log(`[ATTENDANCE] Student Location: ${latitude}, ${longitude}. Distance: ${distance.toFixed(2)}m`);
+
+  if (distance > ALLOWED_RADIUS) {
+    return res.status(400).json({ message: `Access denied. You are ${Math.round(distance)}m away. Must be inside hostel.` });
+  }
+
   const now = new Date();
   const today = now.toLocaleDateString('en-CA'); // YYYY-MM-DD
-
-  console.log(`[ATTENDANCE] User ID ${req.user.id} attempting to mark attendance.`);
-  console.log(`[ATTENDANCE] Received: "${qrData}", Expected: "attendance-${today}"`);
-
-  // Check if QR data is valid (matches today's date)
-  if (qrData !== `attendance-${today}`) {
-    return res.status(400).json({ message: "Invalid or expired QR code" });
-  }
 
   // Check if already marked today
   const checkQuery = "SELECT id FROM attendance WHERE user_id = ? AND attendance_date = ?";
@@ -477,14 +572,12 @@ app.post("/student/mark-attendance", authMiddleware, (req, res) => {
 /* ================= ADMIN GENERATE QR ================= */
 
 app.get("/admin/generate-qr", authMiddleware, (req, res) => {
-  // Note: Restricting to admin/warden is ideal for production.
-  // We allow students to view it here to ensure the system can be tested/demoed easily.
-  /* if (req.user.role !== "admin" && req.user.role !== "warden") {
-    return res.status(403).json({ message: "Access denied" });
-  } */
-
-  const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
-  const qrData = `attendance-${today}`;
+  // Generate a dynamic QR code token that expires in 2 minutes
+  const qrData = jwt.sign(
+    { type: "attendance_qr", generatedAt: Date.now() },
+    JWT_SECRET,
+    { expiresIn: "2m" }
+  );
 
   res.json({ qrData });
 });
@@ -942,6 +1035,14 @@ app.get("/warden/complaints", authMiddleware, (req, res) => {
     if (err) return res.status(500).json({ message: "Server error" });
     res.json(result);
   });
+});
+
+app.get("/admin/generate-qr", authMiddleware, (req, res) => {
+  // Restrict to admin/warden
+  if (req.user.role !== "admin" && req.user.role !== "warden") {
+    return res.status(403).json({ message: "Access denied" });
+  }
+  // ... implementation ...
 });
 
 app.put("/warden/complaint/:id", authMiddleware, (req, res) => {

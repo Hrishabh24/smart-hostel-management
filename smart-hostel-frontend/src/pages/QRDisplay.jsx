@@ -45,7 +45,7 @@ function QRDisplay() {
 
   useEffect(() => {
     generateQR();
-    const interval = setInterval(() => generateQR(true), 15000); // Faster refresh for security
+    const interval = setInterval(() => generateQR(true), 120000); // 2 minutes refresh for dynamic QR
     return () => clearInterval(interval);
   }, []);
 

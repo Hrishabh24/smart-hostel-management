@@ -16,6 +16,8 @@ function AdminAttendance() {
   useEffect(() => {
     fetchAttendance();
     generateQR();
+    const interval = setInterval(generateQR, 120000); // refresh every 2 mins
+    return () => clearInterval(interval);
   }, []);
 
   const fetchAttendance = async () => {
