@@ -467,7 +467,7 @@ export default function Home() {
 
 function FeedbackForm() {
   const [formData, setFormData] = useState({ name: "", email: "", rating: 5, message: "" });
-  const [status, setStatus] = useState(null); // 'submitting', 'success', 'error'
+  const [status, setStatus] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -485,47 +485,58 @@ function FeedbackForm() {
 
   if (status === 'success') {
     return (
-      <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-6 rounded-2xl flex flex-col items-center justify-center text-center">
-        <FaCheckCircle className="text-4xl mb-4" />
-        <h4 className="text-xl font-bold text-white mb-2">Thank You!</h4>
-        <p className="text-sm">Your feedback has been submitted successfully.</p>
+      <div className="bg-gradient-to-br from-green-500/20 to-emerald-600/10 border border-green-500/30 text-green-400 p-10 rounded-3xl flex flex-col items-center justify-center text-center shadow-[0_0_40px_rgba(34,197,94,0.1)] relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 blur-[1px]"></div>
+        <FaCheckCircle className="text-6xl mb-6 text-green-400 drop-shadow-[0_0_15px_rgba(34,197,94,0.6)]" />
+        <h4 className="text-3xl font-black text-white mb-3">Thank You!</h4>
+        <p className="text-green-300 font-medium text-lg">Your feedback helps us shape the future.</p>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-gray-400 mb-1">Your Name</label>
-          <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-[#0B0F19]/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-colors" placeholder="John Doe" />
+    <form onSubmit={handleSubmit} className="space-y-6 relative">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="group">
+          <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Your Name <span className="text-purple-500">*</span></label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-purple-400/50 group-hover:text-purple-400 transition-colors">
+               <FaUsers />
+            </div>
+            <input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-[#1A233A]/50 border border-white/10 rounded-2xl pl-11 pr-4 py-3.5 text-white focus:outline-none focus:border-purple-500 focus:bg-purple-500/5 focus:ring-2 focus:ring-purple-500/20 transition-all shadow-inner" placeholder="E.g. John Doe" />
+          </div>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-400 mb-1">Email Address</label>
-          <input required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full bg-[#0B0F19]/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-colors" placeholder="john@example.com" />
+        <div className="group">
+          <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Email Address <span className="text-purple-500">*</span></label>
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-blue-400/50 group-hover:text-blue-400 transition-colors">
+               <FaEnvelope />
+            </div>
+            <input required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className="w-full bg-[#1A233A]/50 border border-white/10 rounded-2xl pl-11 pr-4 py-3.5 text-white focus:outline-none focus:border-blue-500 focus:bg-blue-500/5 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-inner" placeholder="john@example.com" />
+          </div>
         </div>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-400 mb-2">Rating</label>
-        <div className="flex gap-2">
+        <label className="block text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">Rate Your Experience</label>
+        <div className="flex gap-3">
           {[1, 2, 3, 4, 5].map(star => (
-            <button type="button" key={star} onClick={() => setFormData({ ...formData, rating: star })} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${formData.rating >= star ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50 scale-110' : 'bg-[#0B0F19]/50 text-gray-500 border border-white/10 hover:bg-white/10'}`}>
-              ★
+            <button type="button" key={star} onClick={() => setFormData({ ...formData, rating: star })} className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 text-lg ${formData.rating >= star ? 'bg-gradient-to-br from-yellow-400 to-amber-600 text-white shadow-[0_0_20px_rgba(251,191,36,0.4)] scale-110 -translate-y-1 border-none' : 'bg-[#1A233A]/50 text-gray-500 border border-white/10 hover:bg-white/10 hover:border-white/20 hover:scale-105'}`}>
+              <FaStar />
             </button>
           ))}
         </div>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-400 mb-1">Message</label>
-        <textarea required value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} rows="4" className="w-full resize-none bg-[#0B0F19]/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-colors" placeholder="Tell us what you think..." />
+        <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-wider">Your Thoughts <span className="text-purple-500">*</span></label>
+        <textarea required value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} rows="4" className="w-full resize-none bg-[#1A233A]/50 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:border-purple-500 focus:bg-purple-500/5 focus:ring-2 focus:ring-purple-500/20 transition-all shadow-inner" placeholder="Tell us what you love or how we can improve..." />
       </div>
 
-      {status === 'error' && <p className="text-red-400 text-sm">Failed to submit feedback. Try again.</p>}
+      {status === 'error' && <p className="text-red-400 text-sm font-medium flex items-center gap-2"><FaTimes className="text-red-500" /> Failed to submit feedback. Try again.</p>}
 
-      <button disabled={status === 'submitting'} type="submit" className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-xl shadow-lg hover:from-purple-500 hover:to-blue-500 transition-all disabled:opacity-50">
-        {status === 'submitting' ? 'Submitting...' : 'Send Feedback'}
+      <button disabled={status === 'submitting'} type="submit" className="w-full md:w-auto px-10 py-4 bg-gradient-to-r from-purple-600 via-fuchsia-600 to-blue-600 text-white font-black uppercase tracking-widest text-sm rounded-2xl shadow-[0_10px_30px_rgba(168,85,247,0.4)] hover:shadow-[0_15px_40px_rgba(168,85,247,0.6)] hover:-translate-y-1 transition-all disabled:opacity-50 disabled:hover:translate-y-0 flex items-center justify-center gap-3">
+        {status === 'submitting' ? <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> Submitting...</> : 'Send Feedback'}
       </button>
     </form>
   );
@@ -537,8 +548,10 @@ function RecentFeedbacks() {
   useEffect(() => {
     axios.get("http://localhost:2008/public/feedbacks")
       .then(res => {
-        if (Array.isArray(res.data)) {
-          setFeedbacks(res.data);
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          // Copy array multiple times for infinite continuous marquee effect
+          const original = res.data;
+          setFeedbacks([...original, ...original, ...original, ...original]);
         }
       })
       .catch(err => console.error("Error fetching feedbacks:", err));
@@ -547,27 +560,59 @@ function RecentFeedbacks() {
   if (feedbacks.length === 0) return null;
 
   return (
-    <div className="max-w-7xl mx-auto px-6 lg:px-8 mt-16 relative z-20">
-      <div className="text-center mb-12">
-        <h3 className="text-2xl font-bold text-white">What Our Community Says</h3>
-        <p className="text-gray-400 mt-2 text-sm">Real experiences from students and parents.</p>
+    <div className="w-full mt-32 relative z-20 overflow-hidden py-10">
+      <style>{`
+        @keyframes marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .scrolling-wrapper {
+          display: flex;
+          width: max-content;
+          animation: marquee 40s linear infinite;
+        }
+        .scrolling-wrapper:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
+      
+      <div className="text-center mb-16 relative">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-32 bg-purple-600/20 blur-[80px] pointer-events-none rounded-full"></div>
+        <h2 className="text-xs lg:text-sm font-bold tracking-[0.2em] text-purple-400 uppercase mb-4">Testimonials</h2>
+        <h3 className="text-3xl lg:text-5xl font-extrabold text-white">Voices of <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-400">Our Community</span></h3>
       </div>
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {feedbacks.map((fb, idx) => (
-          <div key={idx} className="bg-[#131B2F]/40 backdrop-blur-md border border-white/5 rounded-2xl p-6 hover:-translate-y-1 transition-transform duration-300">
-            <FaQuoteLeft className="text-purple-500/20 text-4xl absolute top-4 right-4" />
-            <div className="flex items-center gap-1 mb-4">
-              {[...Array(5)].map((_, i) => (
-                <FaStar key={i} className={`text-sm ${i < fb.rating ? 'text-yellow-500' : 'text-gray-600'}`} />
-              ))}
+      
+      <div className="relative w-full overflow-hidden">
+        {/* Gradients on edges for smooth fading mask */}
+        <div className="absolute top-0 left-0 w-16 md:w-40 h-full bg-gradient-to-r from-[#0B0F19] to-transparent z-10 pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-16 md:w-40 h-full bg-gradient-to-l from-[#0B0F19] to-transparent z-10 pointer-events-none"></div>
+        
+        <div className="scrolling-wrapper gap-6 px-6">
+          {feedbacks.map((fb, idx) => (
+            <div key={idx} className="w-[300px] md:w-[380px] flex-shrink-0 bg-gradient-to-br from-[#131B2F]/80 to-[#1A233A]/80 backdrop-blur-xl border border-white/10 rounded-3xl p-8 hover:border-purple-500/50 hover:shadow-[0_0_35px_rgba(168,85,247,0.2)] transition-all duration-300 relative group flex flex-col h-[280px]">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-purple-500/10 to-transparent rounded-bl-full rounded-tr-3xl -z-10 group-hover:from-purple-500/20 transition-all duration-500"></div>
+              <FaQuoteLeft className="text-purple-500/20 text-5xl absolute top-6 right-6 group-hover:scale-110 group-hover:text-purple-500/40 transition-transform duration-300" />
+              
+              <div className="flex items-center gap-1.5 mb-6">
+                {[...Array(5)].map((_, i) => (
+                  <FaStar key={i} className={`text-base ${i < fb.rating ? 'text-yellow-400 drop-shadow-[0_0_8px_rgba(250,204,21,0.6)]' : 'text-gray-700'}`} />
+                ))}
+              </div>
+              
+              <p className="text-sm md:text-base text-gray-300 mb-6 italic leading-relaxed flex-grow line-clamp-4 relative z-10">"{fb.message}"</p>
+              
+              <div className="mt-auto border-t border-white/5 pt-5 flex justify-between items-end relative z-10">
+                <div>
+                  <h4 className="text-white font-bold text-base md:text-lg tracking-wide">{fb.name}</h4>
+                  <p className="text-xs text-gray-500 mt-1 uppercase tracking-wider font-semibold">{new Date(fb.created_at).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})}</p>
+                </div>
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-blue-600 flex items-center justify-center text-white font-black text-xl shadow-[0_5px_15px_rgba(147,51,234,0.4)] transform group-hover:-rotate-6 transition-transform duration-300">
+                  {fb.name.charAt(0).toUpperCase()}
+                </div>
+              </div>
             </div>
-            <p className="text-sm text-gray-300 mb-6 italic ">{`"${fb.message}"`}</p>
-            <div className="mt-auto">
-              <h4 className="text-white font-bold text-sm">{fb.name}</h4>
-              <p className="text-xs text-gray-500 mt-1">{new Date(fb.created_at).toLocaleDateString()}</p>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
