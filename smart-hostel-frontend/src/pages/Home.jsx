@@ -4,7 +4,7 @@ import axios from "axios";
 import {
   FaBars, FaTimes, FaQrcode, FaCreditCard, FaClipboardList, FaChartBar,
   FaUsers, FaCheckCircle, FaEnvelope, FaPhoneAlt, FaMapMarkerAlt,
-  FaChevronRight, FaHome, FaDesktop, FaTwitter, FaGithub, FaLinkedin
+  FaChevronRight, FaHome, FaDesktop, FaTwitter, FaGithub, FaLinkedin, FaStar, FaQuoteLeft
 } from "react-icons/fa";
 
 export default function Home() {
@@ -373,6 +373,9 @@ export default function Home() {
             <FeedbackForm />
           </div>
         </div>
+
+        {/* RECENT FEEDBACKS DISPLAY SECTION */}
+        <RecentFeedbacks />
       </main>
 
       {/* FOOTER */}
@@ -524,5 +527,47 @@ function FeedbackForm() {
         {status === 'submitting' ? 'Submitting...' : 'Send Feedback'}
       </button>
     </form>
+  );
+}
+
+function RecentFeedbacks() {
+  const [feedbacks, setFeedbacks] = useState([]);
+
+  useEffect(() => {
+    axios.get("http://localhost:2008/public/feedbacks")
+      .then(res => {
+        if (Array.isArray(res.data)) {
+          setFeedbacks(res.data);
+        }
+      })
+      .catch(err => console.error("Error fetching feedbacks:", err));
+  }, []);
+
+  if (feedbacks.length === 0) return null;
+
+  return (
+    <div className="max-w-7xl mx-auto px-6 lg:px-8 mt-16 relative z-20">
+      <div className="text-center mb-12">
+        <h3 className="text-2xl font-bold text-white">What Our Community Says</h3>
+        <p className="text-gray-400 mt-2 text-sm">Real experiences from students and parents.</p>
+      </div>
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {feedbacks.map((fb, idx) => (
+          <div key={idx} className="bg-[#131B2F]/40 backdrop-blur-md border border-white/5 rounded-2xl p-6 hover:-translate-y-1 transition-transform duration-300">
+            <FaQuoteLeft className="text-purple-500/20 text-4xl absolute top-4 right-4" />
+            <div className="flex items-center gap-1 mb-4">
+              {[...Array(5)].map((_, i) => (
+                <FaStar key={i} className={`text-sm ${i < fb.rating ? 'text-yellow-500' : 'text-gray-600'}`} />
+              ))}
+            </div>
+            <p className="text-sm text-gray-300 mb-6 italic ">{`"${fb.message}"`}</p>
+            <div className="mt-auto">
+              <h4 className="text-white font-bold text-sm">{fb.name}</h4>
+              <p className="text-xs text-gray-500 mt-1">{new Date(fb.created_at).toLocaleDateString()}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

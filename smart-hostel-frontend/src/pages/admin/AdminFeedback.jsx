@@ -19,7 +19,7 @@ export default function AdminFeedback() {
       const res = await axios.get(`${API}/admin/feedbacks`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setFeedbacks(res.data);
+      setFeedbacks(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error(err);
       setError("Failed to load feedbacks.");
@@ -29,9 +29,9 @@ export default function AdminFeedback() {
   };
 
   const filteredFeedbacks = feedbacks.filter(fb =>
-    fb.name.toLowerCase().includes(search.toLowerCase()) ||
-    fb.email.toLowerCase().includes(search.toLowerCase()) ||
-    fb.message.toLowerCase().includes(search.toLowerCase())
+    (fb.name || "").toLowerCase().includes(search.toLowerCase()) ||
+    (fb.email || "").toLowerCase().includes(search.toLowerCase()) ||
+    (fb.message || "").toLowerCase().includes(search.toLowerCase())
   );
 
   return (

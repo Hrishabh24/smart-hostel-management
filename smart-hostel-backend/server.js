@@ -33,8 +33,8 @@ const fileFilter = (req, file, cb) => {
     cb(new Error("Invalid file type. Only JPG, PNG, WEBP files are allowed."));
   }
 };
-const upload = multer({ 
-  storage, 
+const upload = multer({
+  storage,
   fileFilter,
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
@@ -147,10 +147,18 @@ app.post("/public/feedback", (req, res) => {
   });
 });
 
+app.get("/public/feedbacks", (req, res) => {
+  const query = "SELECT id, name, rating, message, created_at FROM feedbacks ORDER BY created_at DESC LIMIT 6";
+  db.query(query, (err, result) => {
+    if (err) return res.status(500).json({ message: "Server error" });
+    res.json(result);
+  });
+});
+
 /* ================= ADMIN VIEW FEEDBACKS ================= */
 app.get("/admin/feedbacks", authMiddleware, (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
-  
+
   const query = "SELECT * FROM feedbacks ORDER BY created_at DESC";
   db.query(query, (err, result) => {
     if (err) return res.status(500).json({ message: "Server error" });
@@ -166,7 +174,7 @@ app.get("/public/live-insights", (req, res) => {
 
   db.query(studentsQuery, (err, studentRes) => {
     if (err) return res.status(500).json({ message: "Server error" });
-    
+
     db.query(roomsQuery, (err, roomRes) => {
       if (err) return res.status(500).json({ message: "Server error" });
 
@@ -373,11 +381,11 @@ app.post("/student/upload-profile-pic", authMiddleware, (req, res) => {
       // Handle multer errors (like fileFilter throwing error)
       return res.status(400).json({ message: err.message || "File upload failed" });
     }
-    
+
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
-    
+
     const imageUrl = `/uploads/${req.file.filename}`;
     const query = "UPDATE users SET profilePic = ? WHERE id = ?";
     db.query(query, [imageUrl, req.user.id], (dbErr) => {
@@ -560,15 +568,15 @@ app.post("/student/mark-attendance", authMiddleware, (req, res) => {
 
   // Haversine formula
   const R = 6371e3; // metres
-  const r1 = latitude * Math.PI/180;
-  const r2 = HOSTEL_LAT * Math.PI/180;
-  const dp = (HOSTEL_LAT-latitude) * Math.PI/180;
-  const dl = (HOSTEL_LON-longitude) * Math.PI/180;
+  const r1 = latitude * Math.PI / 180;
+  const r2 = HOSTEL_LAT * Math.PI / 180;
+  const dp = (HOSTEL_LAT - latitude) * Math.PI / 180;
+  const dl = (HOSTEL_LON - longitude) * Math.PI / 180;
 
-  const a = Math.sin(dp/2) * Math.sin(dp/2) +
-            Math.cos(r1) * Math.cos(r2) *
-            Math.sin(dl/2) * Math.sin(dl/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const a = Math.sin(dp / 2) * Math.sin(dp / 2) +
+    Math.cos(r1) * Math.cos(r2) *
+    Math.sin(dl / 2) * Math.sin(dl / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c;
 
   console.log(`[ATTENDANCE] Student Location: ${latitude}, ${longitude}. Distance: ${distance.toFixed(2)}m (Against Hostel: ${HOSTEL_LAT}, ${HOSTEL_LON})`);
@@ -1080,14 +1088,14 @@ app.get("/admin/generate-qr", authMiddleware, (req, res) => {
   if (req.user.role !== "admin" && req.user.role !== "warden") {
     return res.status(403).json({ message: "Access denied" });
   }
-  
+
   // Accept admin's current location from query and embed it into the QR code
   const { lat, lng } = req.query;
 
   // Generate a dynamic QR code token that expires in 2 minutes
   const qrData = jwt.sign(
-    { 
-      type: "attendance_qr", 
+    {
+      type: "attendance_qr",
       generatedAt: Date.now(),
       lat: lat || null,
       lng: lng || null
