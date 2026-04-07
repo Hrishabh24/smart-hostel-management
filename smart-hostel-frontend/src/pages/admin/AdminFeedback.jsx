@@ -10,23 +10,23 @@ export default function AdminFeedback() {
   const API = "http://localhost:2008"; // Fallback if needed
 
   useEffect(() => {
-    fetchFeedbacks();
-  }, []);
+    const fetchFeedbacks = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get(`${API}/admin/feedbacks`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setFeedbacks(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        console.error(err);
+        setError("Failed to load feedbacks.");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const fetchFeedbacks = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res = await axios.get(`${API}/admin/feedbacks`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setFeedbacks(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to load feedbacks.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchFeedbacks();
+  }, [API]);
 
   const filteredFeedbacks = feedbacks.filter(fb =>
     (fb.name || "").toLowerCase().includes(search.toLowerCase()) ||

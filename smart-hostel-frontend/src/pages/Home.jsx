@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import {
   FaBars, FaTimes, FaQrcode, FaCreditCard, FaClipboardList, FaChartBar,
-  FaUsers, FaCheckCircle, FaEnvelope, FaPhoneAlt, FaMapMarkerAlt,
+  FaUsers, FaCheckCircle, FaEnvelope, FaPhoneAlt,
   FaChevronRight, FaHome, FaDesktop, FaTwitter, FaGithub, FaLinkedin, FaStar, FaQuoteLeft
 } from "react-icons/fa";
 
