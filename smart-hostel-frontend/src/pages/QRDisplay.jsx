@@ -9,6 +9,18 @@ function QRDisplay() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState("");
 
+  const [displayLocation, setDisplayLocation] = useState(null);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setDisplayLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => console.log("Display location not available:", err.message),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    }
+  }, []);
+
   const generateQR = async (isRetry = false) => {
     try {
       if (!isRetry) setLoading(true); // Don't show loader on background refreshes
@@ -24,7 +36,12 @@ function QRDisplay() {
         headers: { Authorization: `Bearer ${token}` },
       };
       
-      const res = await axios.get("http://localhost:2008/admin/generate-qr", config);
+      let url = "http://localhost:2008/admin/generate-qr";
+      if (displayLocation) {
+        url += `?lat=${displayLocation.lat}&lng=${displayLocation.lng}`;
+      }
+
+      const res = await axios.get(url, config);
       
       const qrValue = res.data.qrData || res.data.data;
       
@@ -47,7 +64,7 @@ function QRDisplay() {
     generateQR();
     const interval = setInterval(() => generateQR(true), 120000); // 2 minutes refresh for dynamic QR
     return () => clearInterval(interval);
-  }, []);
+  }, [displayLocation]); // Rerun setup if location changes
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-[#0B0F19] p-4">

@@ -502,9 +502,10 @@ app.post("/student/mark-attendance", authMiddleware, (req, res) => {
 
   qrData = String(qrData).trim();
 
+  let decoded;
   // Verify dynamic QR code (JWT with 2m expiry)
   try {
-    const decoded = jwt.verify(qrData, JWT_SECRET);
+    decoded = jwt.verify(qrData, JWT_SECRET);
     if (decoded.type !== "attendance_qr") throw new Error("Invalid token type");
   } catch (err) {
     console.error("[ATTENDANCE] QR Verification Failed:", err.message);
@@ -516,10 +517,11 @@ app.post("/student/mark-attendance", authMiddleware, (req, res) => {
     return res.status(400).json({ message: "Location required. Please allow location access." });
   }
 
-  // Define Hostel Coordinates (Defaulting to Delhi coords if not in ENV)
-  const HOSTEL_LAT = parseFloat(process.env.HOSTEL_LAT || "28.6139");
-  const HOSTEL_LON = parseFloat(process.env.HOSTEL_LON || "77.2090");
-  const ALLOWED_RADIUS = 500; // meters
+  // DYNAMIC HOSTEL COORDINATES (From the Admin's Device that generated the QR)
+  // If the Admin device couldn't provide location, we use fallback Delhi coordinates
+  const HOSTEL_LAT = decoded.lat ? parseFloat(decoded.lat) : parseFloat(process.env.HOSTEL_LAT || "28.6139");
+  const HOSTEL_LON = decoded.lng ? parseFloat(decoded.lng) : parseFloat(process.env.HOSTEL_LON || "77.2090");
+  const ALLOWED_RADIUS = 200; // stricter meters
 
   // Haversine formula
   const R = 6371e3; // metres
@@ -534,8 +536,9 @@ app.post("/student/mark-attendance", authMiddleware, (req, res) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   const distance = R * c;
 
-  console.log(`[ATTENDANCE] Student Location: ${latitude}, ${longitude}. Distance: ${distance.toFixed(2)}m`);
+  console.log(`[ATTENDANCE] Student Location: ${latitude}, ${longitude}. Distance: ${distance.toFixed(2)}m (Against Hostel: ${HOSTEL_LAT}, ${HOSTEL_LON})`);
 
+  // Allow bypass for local testing if IPs are both localhost and strictly needed, but dynamic coordinates should fix it completely.
   if (distance > ALLOWED_RADIUS) {
     return res.status(400).json({ message: `Access denied. You are ${Math.round(distance)}m away. Must be inside hostel.` });
   }
@@ -1042,7 +1045,23 @@ app.get("/admin/generate-qr", authMiddleware, (req, res) => {
   if (req.user.role !== "admin" && req.user.role !== "warden") {
     return res.status(403).json({ message: "Access denied" });
   }
-  // ... implementation ...
+  
+  // Accept admin's current location from query and embed it into the QR code
+  const { lat, lng } = req.query;
+
+  // Generate a dynamic QR code token that expires in 2 minutes
+  const qrData = jwt.sign(
+    { 
+      type: "attendance_qr", 
+      generatedAt: Date.now(),
+      lat: lat || null,
+      lng: lng || null
+    },
+    JWT_SECRET,
+    { expiresIn: "2m" }
+  );
+
+  res.json({ qrData });
 });
 
 app.put("/warden/complaint/:id", authMiddleware, (req, res) => {

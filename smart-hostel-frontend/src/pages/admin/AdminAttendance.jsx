@@ -9,16 +9,25 @@ function AdminAttendance() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const config = {
-    headers: { Authorization: `Bearer ${token}` },
-  };
+  const [adminLocation, setAdminLocation] = useState(null);
+
+  useEffect(() => {
+    // Try to obtain Admin's location once so it can be embedded in generated QR codes
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setAdminLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => console.log("Admin location not available:", err.message),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    }
+  }, []);
 
   useEffect(() => {
     fetchAttendance();
     generateQR();
     const interval = setInterval(generateQR, 120000); // refresh every 2 mins
     return () => clearInterval(interval);
-  }, []);
+  }, [adminLocation]); // Dependency added so it uses latest location
 
   const fetchAttendance = async () => {
     try {
@@ -39,7 +48,11 @@ function AdminAttendance() {
 
   const generateQR = async () => {
     try {
-      const res = await axios.get("http://localhost:2008/admin/generate-qr", config);
+      let url = "http://localhost:2008/admin/generate-qr";
+      if (adminLocation) {
+        url += `?lat=${adminLocation.lat}&lng=${adminLocation.lng}`;
+      }
+      const res = await axios.get(url, config);
       console.log("QR Response:", res.data);
       
       // Handle different response formats
