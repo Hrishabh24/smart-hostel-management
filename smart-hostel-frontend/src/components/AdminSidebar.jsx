@@ -13,7 +13,8 @@ import {
   LogOut,
   ChevronRight,
   Menu,
-  X
+  X,
+  MessageSquare
 } from "lucide-react";
 
 import { useState } from "react";
@@ -39,6 +40,7 @@ function AdminSidebar() {
     { path: "/admin-dashboard/wardens", icon: ShieldCheck, label: "Wardens" },
     { path: "/admin-dashboard/parents", icon: Users, label: "Parents" },
     { path: "/admin-dashboard/reports", icon: FileText, label: "Reports" },
+    { path: "/admin-dashboard/feedbacks", icon: MessageSquare, label: "Feedbacks" },
     { path: "/admin-dashboard/settings", icon: Settings, label: "Settings" }
   ];
 

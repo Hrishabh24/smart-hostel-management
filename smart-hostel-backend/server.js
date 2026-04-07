@@ -123,6 +123,41 @@ app.get("/public/latest-activity", (req, res) => {
   });
 });
 
+/* ================= PUBLIC FEEDBACK (Web Form) ================= */
+// ensure feedbacks table exists
+db.query(`CREATE TABLE IF NOT EXISTS feedbacks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  rating INT DEFAULT 5,
+  message TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)`, (err) => err && console.error("Failed to create feedbacks table", err));
+
+app.post("/public/feedback", (req, res) => {
+  const { name, email, rating, message } = req.body;
+  if (!name || !email || !message) {
+    return res.status(400).json({ message: "Name, email, and message are required" });
+  }
+
+  const query = "INSERT INTO feedbacks (name, email, rating, message) VALUES (?, ?, ?, ?)";
+  db.query(query, [name, email, rating || 5, message], (err) => {
+    if (err) return res.status(500).json({ message: "Error submitting feedback" });
+    res.json({ message: "Feedback submitted successfully" });
+  });
+});
+
+/* ================= ADMIN VIEW FEEDBACKS ================= */
+app.get("/admin/feedbacks", authMiddleware, (req, res) => {
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
+  
+  const query = "SELECT * FROM feedbacks ORDER BY created_at DESC";
+  db.query(query, (err, result) => {
+    if (err) return res.status(500).json({ message: "Server error" });
+    res.json(result);
+  });
+});
+
 /* ================= PUBLIC LIVE INSIGHTS (For Home Page Demo) ================= */
 app.get("/public/live-insights", (req, res) => {
   const studentsQuery = "SELECT COUNT(*) as count FROM users WHERE role = 'student'";

@@ -31,6 +31,7 @@ import AdminWardens from "./pages/admin/AdminWardens";
 import AdminParents from "./pages/admin/AdminParents";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminSettings from "./pages/admin/AdminSettings";
+import AdminFeedback from "./pages/admin/AdminFeedback";
 import WardenLayout from "./pages/warden/WardenLayout";
 import WardenDashboard from "./pages/warden/WardenDashboard";
 import WardenStudents from "./pages/warden/WardenStudents";
@@ -214,6 +215,7 @@ function App() {
           <Route path="parents" element={<AdminParents />} />
           <Route path="reports" element={<AdminReports />} />
           <Route path="settings" element={<AdminSettings />} />
+          <Route path="feedbacks" element={<AdminFeedback />} />
           <Route path="profile" element={<Profile />} />
           <Route path="edit-profile" element={<EditProfile />} />
         </Route>

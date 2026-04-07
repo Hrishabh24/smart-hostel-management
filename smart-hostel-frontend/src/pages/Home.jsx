@@ -358,6 +358,21 @@ export default function Home() {
             ))}
           </div>
         </div>
+
+        {/* FEEDBACK SECTION */}
+        <div className="max-w-4xl mx-auto px-6 lg:px-8 mt-24 lg:mt-40 relative z-20">
+          <div className="bg-[#131B2F]/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 lg:p-12 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/10 rounded-full blur-[80px] pointer-events-none"></div>
+            
+            <div className="text-center mb-10">
+              <h2 className="text-sm font-bold tracking-[0.2em] text-purple-400 uppercase mb-3">Feedback</h2>
+              <h3 className="text-3xl lg:text-4xl font-bold text-white">How can we improve?</h3>
+              <p className="text-gray-400 mt-4 text-sm max-w-lg mx-auto">Your feedback helps us create a better ecosystem for students and admins.</p>
+            </div>
+
+            <FeedbackForm />
+          </div>
+        </div>
       </main>
 
       {/* FOOTER */}
@@ -443,5 +458,71 @@ export default function Home() {
         </div>
       </footer>
     </div>
+  );
+}
+
+function FeedbackForm() {
+  const [formData, setFormData] = useState({ name: "", email: "", rating: 5, message: "" });
+  const [status, setStatus] = useState(null); // 'submitting', 'success', 'error'
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setStatus('submitting');
+    try {
+      await axios.post("http://localhost:2008/public/feedback", formData);
+      setStatus('success');
+      setFormData({ name: "", email: "", rating: 5, message: "" });
+      setTimeout(() => setStatus(null), 5000);
+    } catch (err) {
+      console.error(err);
+      setStatus('error');
+    }
+  };
+
+  if (status === 'success') {
+    return (
+      <div className="bg-green-500/10 border border-green-500/20 text-green-400 p-6 rounded-2xl flex flex-col items-center justify-center text-center">
+        <FaCheckCircle className="text-4xl mb-4" />
+        <h4 className="text-xl font-bold text-white mb-2">Thank You!</h4>
+        <p className="text-sm">Your feedback has been submitted successfully.</p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-400 mb-1">Your Name</label>
+          <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-[#0B0F19]/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-colors" placeholder="John Doe" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-400 mb-1">Email Address</label>
+          <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-[#0B0F19]/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-colors" placeholder="john@example.com" />
+        </div>
+      </div>
+      
+      <div>
+        <label className="block text-xs font-medium text-gray-400 mb-2">Rating</label>
+        <div className="flex gap-2">
+          {[1,2,3,4,5].map(star => (
+            <button type="button" key={star} onClick={() => setFormData({...formData, rating: star})} className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${formData.rating >= star ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50 scale-110' : 'bg-[#0B0F19]/50 text-gray-500 border border-white/10 hover:bg-white/10'}`}>
+              ★
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-gray-400 mb-1">Message</label>
+        <textarea required value={formData.message} onChange={e => setFormData({...formData, message: e.target.value})} rows="4" className="w-full resize-none bg-[#0B0F19]/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500/50 transition-colors" placeholder="Tell us what you think..." />
+      </div>
+
+      {status === 'error' && <p className="text-red-400 text-sm">Failed to submit feedback. Try again.</p>}
+
+      <button disabled={status === 'submitting'} type="submit" className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-xl shadow-lg hover:from-purple-500 hover:to-blue-500 transition-all disabled:opacity-50">
+        {status === 'submitting' ? 'Submitting...' : 'Send Feedback'}
+      </button>
+    </form>
   );
 }
