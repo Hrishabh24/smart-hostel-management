@@ -1,9 +1,12 @@
-const db = require("./db");
-db.query("SELECT email, role FROM users WHERE role IN ('admin', 'warden') LIMIT 1", (err, result) => {
-    if (err) {
-        console.error(err);
-        process.exit(1);
-    }
+const db = require("../db");
+async function run() {
+  try {
+    const snap = await db.collection("users").where("role", "in", ["admin", "warden"]).limit(1).get();
+    const result = snap.docs.map(d => ({ email: d.data().email, role: d.data().role }));
     console.log(JSON.stringify(result));
-    process.exit(0);
-});
+  } catch (e) {
+    console.error(e);
+  }
+  process.exit(0);
+}
+run();

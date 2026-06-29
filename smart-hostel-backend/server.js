@@ -39,7 +39,6 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
-// keep secret in environment variable for flexibility
 const JWT_SECRET = process.env.JWT_SECRET || "secretkey";
 
 const transporter = nodemailer.createTransport({
@@ -49,7 +48,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS
   }
 });
-
 
 const app = express();
 app.use(cors());
@@ -83,156 +81,200 @@ const loginRateLimiter = (req, res, next) => {
   next();
 };
 
-// Periodic cleanup of rate limit map to prevent memory leaks
 setInterval(() => {
   const now = Date.now();
   for (const [ip, data] of rateLimits.entries()) {
     if (now > data.resetTime) rateLimits.delete(ip);
   }
-}, 15 * 60 * 1000); // Clean every 15 minutes
+}, 15 * 60 * 1000);
 
+// Helper to format firestore doc date
+const formatDate = (val) => {
+  if (!val) return new Date().toISOString();
+  if (val.toDate && typeof val.toDate === 'function') return val.toDate().toISOString();
+  return val;
+};
 
 /* ================= ROOT ================= */
 
 app.get("/", (req, res) => {
-  res.send("HELLO FROM HRISHABH SERVER 🔥");
+  res.send("HELLO FROM HRISHABH SERVER 🔥 (Powered by Firebase Firestore)");
 });
 
 /* ================= PUBLIC ACTIVITY (For Home Page Demo) ================= */
-app.get("/public/latest-activity", (req, res) => {
-  const query = `
-    SELECT u.name, a.created_at
-    FROM attendance a
-    JOIN users u ON a.user_id = u.id
-    ORDER BY a.created_at DESC
-    LIMIT 1
-  `;
-  db.query(query, (err, results) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-    if (results[0]) {
-      // Anonymize data slightly for privacy
-      const firstName = results[0].name.split(' ')[0];
-      res.json({
-        name: firstName + ' ***',
-        roomNumber: 'Hidden for privacy',
-        created_at: results[0].created_at
-      });
+app.get("/public/latest-activity", async (req, res) => {
+  try {
+    const snapshot = await db.collection("attendance").orderBy("created_at", "desc").limit(1).get();
+    if (snapshot.empty) return res.json(null);
+
+    const attDoc = snapshot.docs[0].data();
+    const userDoc = await db.collection("users").doc(String(attDoc.user_id)).get();
+    let name = "Student";
+    if (userDoc.exists) {
+      name = userDoc.data().name || "Student";
     } else {
-      res.json(null);
+      // search user by custom id field
+      const userSnap = await db.collection("users").where("id", "==", attDoc.user_id).limit(1).get();
+      if (!userSnap.empty) name = userSnap.docs[0].data().name || "Student";
     }
-  });
+
+    const firstName = name.split(' ')[0];
+    res.json({
+      name: firstName + ' ***',
+      roomNumber: 'Hidden for privacy',
+      created_at: formatDate(attDoc.created_at)
+    });
+  } catch (err) {
+    console.error("Latest activity error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= PUBLIC FEEDBACK (Web Form) ================= */
-// ensure feedbacks table exists
-db.query(`CREATE TABLE IF NOT EXISTS feedbacks (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) NOT NULL,
-  rating INT DEFAULT 5,
-  message TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)`, (err) => err && console.error("Failed to create feedbacks table", err));
-
-app.post("/public/feedback", (req, res) => {
+app.post("/public/feedback", async (req, res) => {
   const { name, email, rating, message } = req.body;
   if (!name || !email || !message) {
     return res.status(400).json({ message: "Name, email, and message are required" });
   }
 
-  const query = "INSERT INTO feedbacks (name, email, rating, message) VALUES (?, ?, ?, ?)";
-  db.query(query, [name, email, rating || 5, message], (err) => {
-    if (err) return res.status(500).json({ message: "Error submitting feedback" });
+  try {
+    const docRef = await db.collection("feedbacks").add({
+      name,
+      email,
+      rating: rating || 5,
+      message,
+      created_at: new Date().toISOString()
+    });
+    await docRef.update({ id: docRef.id });
     res.json({ message: "Feedback submitted successfully" });
-  });
+  } catch (err) {
+    console.error("Feedback submit error:", err);
+    res.status(500).json({ message: "Error submitting feedback" });
+  }
 });
 
-app.get("/public/feedbacks", (req, res) => {
-  const query = "SELECT id, name, rating, message, created_at FROM feedbacks ORDER BY created_at DESC LIMIT 6";
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+app.get("/public/feedbacks", async (req, res) => {
+  try {
+    const snapshot = await db.collection("feedbacks").orderBy("created_at", "desc").limit(6).get();
+    const result = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      created_at: formatDate(doc.data().created_at)
+    }));
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Public feedbacks error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= ADMIN VIEW FEEDBACKS ================= */
-app.get("/admin/feedbacks", authMiddleware, (req, res) => {
+app.get("/admin/feedbacks", authMiddleware, async (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
 
-  const query = "SELECT * FROM feedbacks ORDER BY created_at DESC";
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    const snapshot = await db.collection("feedbacks").orderBy("created_at", "desc").get();
+    const result = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      created_at: formatDate(doc.data().created_at)
+    }));
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Admin feedbacks error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= PUBLIC LIVE INSIGHTS (For Home Page Demo) ================= */
-app.get("/public/live-insights", (req, res) => {
-  const studentsQuery = "SELECT COUNT(*) as count FROM users WHERE role = 'student'";
-  const roomsQuery = "SELECT SUM(capacity - occupied) as count FROM rooms";
-  const paymentsQuery = "SELECT SUM(amount) as total FROM payments WHERE status = 'success'";
+app.get("/public/live-insights", async (req, res) => {
+  try {
+    const studentsSnap = await db.collection("users").where("role", "==", "student").get();
+    const studentsCount = studentsSnap.size;
 
-  db.query(studentsQuery, (err, studentRes) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-
-    db.query(roomsQuery, (err, roomRes) => {
-      if (err) return res.status(500).json({ message: "Server error" });
-
-      db.query(paymentsQuery, (err, paymentRes) => {
-        if (err) return res.status(500).json({ message: "Server error" });
-
-        res.json({
-          students: studentRes[0].count || 0,
-          rooms: roomRes[0].count || 0,
-          payments: paymentRes[0].total || 0,
-        });
-      });
+    const roomsSnap = await db.collection("rooms").get();
+    let availableRooms = 0;
+    roomsSnap.forEach(doc => {
+      const r = doc.data();
+      const cap = Number(r.capacity) || 0;
+      const occ = Number(r.occupied) || 0;
+      availableRooms += Math.max(0, cap - occ);
     });
-  });
+
+    const paymentsSnap = await db.collection("payments").where("status", "==", "success").get();
+    let totalPayments = 0;
+    paymentsSnap.forEach(doc => {
+      totalPayments += Number(doc.data().amount) || 0;
+    });
+
+    res.json({
+      students: studentsCount,
+      rooms: availableRooms,
+      payments: totalPayments,
+    });
+  } catch (err) {
+    console.error("Live insights error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= REGISTER ================= */
 
 app.post("/register", async (req, res) => {
-  const { name, email, password } = req.body; // Removed 'role' from direct destructuring to prevent privilege escalation
-  const role = "student"; // Hardcode standard registration as student
+  const { name, email, password } = req.body;
+  const role = "student";
   const normalizedEmail = String(email || "").trim().toLowerCase();
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  try {
+    const existingSnap = await db.collection("users").where("email", "==", normalizedEmail).get();
+    if (!existingSnap.empty) {
+      return res.status(400).json({ message: "User already exists with this email" });
+    }
 
-  const query =
-    "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)";
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const docRef = db.collection("users").doc();
+    const userId = docRef.id; // use string doc ID or numeric timestamp fallback
 
-  db.query(query, [name, normalizedEmail, hashedPassword, role], (err) => {
-    if (err) return res.status(500).json({ message: "Error registering user" });
+    await docRef.set({
+      id: userId,
+      name,
+      email: normalizedEmail,
+      password: hashedPassword,
+      role,
+      phone: "",
+      roomNumber: null,
+      profilePic: "",
+      resetToken: null,
+      resetTokenExpiry: null,
+      created_at: new Date().toISOString()
+    });
 
     res.json({ message: "User registered successfully" });
-  });
+  } catch (err) {
+    console.error("Register error:", err);
+    res.status(500).json({ message: "Error registering user" });
+  }
 });
 
 /* ================= LOGIN ================= */
 
-app.post("/login", loginRateLimiter, (req, res) => {
+app.post("/login", loginRateLimiter, async (req, res) => {
   const { email, password } = req.body;
   const normalizedEmail = String(email || "").trim().toLowerCase();
 
-  const query = "SELECT * FROM users WHERE email = ?";
+  try {
+    const snapshot = await db.collection("users").where("email", "==", normalizedEmail).limit(1).get();
+    if (snapshot.empty) return res.status(400).json({ message: "User not found" });
 
-  db.query(query, [normalizedEmail], async (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-
-    if (result.length === 0)
-      return res.status(400).json({ message: "User not found" });
-
-    const user = result[0];
+    const userDoc = snapshot.docs[0];
+    const user = userDoc.data();
+    const userId = user.id || userDoc.id;
 
     const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch)
-      return res.status(400).json({ message: "Invalid password" });
+    if (!isMatch) return res.status(400).json({ message: "Invalid password" });
 
     const token = jwt.sign(
-      { id: user.id, role: user.role },
+      { id: userId, role: user.role },
       JWT_SECRET,
       { expiresIn: "5m" }
     );
@@ -242,46 +284,49 @@ app.post("/login", loginRateLimiter, (req, res) => {
       token,
       role: user.role,
     });
-  });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= FORGOT PASSWORD ================= */
 
-app.post("/forgot-password", loginRateLimiter, (req, res) => {
+app.post("/forgot-password", loginRateLimiter, async (req, res) => {
   const { email } = req.body;
 
-  const query = "SELECT id FROM users WHERE email = ?";
+  try {
+    const snapshot = await db.collection("users").where("email", "==", email).limit(1).get();
+    if (snapshot.empty) return res.status(400).json({ message: "User not found" });
 
-  db.query(query, [email], (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-
-    if (result.length === 0)
-      return res.status(400).json({ message: "User not found" });
-
-    const userId = result[0].id;
+    const userDoc = snapshot.docs[0];
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
+    const resetTokenExpiry = new Date(Date.now() + 3600000).toISOString();
 
-    const updateQuery = "UPDATE users SET resetToken = ?, resetTokenExpiry = ? WHERE id = ?";
-    db.query(updateQuery, [resetToken, resetTokenExpiry, userId], (err) => {
-      if (err) return res.status(500).json({ message: "Server error" });
-
-      const resetUrl = `http://localhost:3000/reset-password/${resetToken}`;
-
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: 'Password Reset Request',
-        text: `You requested a password reset. Click the link to reset your password: ${resetUrl}. This link expires in 1 hour.`
-      };
-
-      transporter.sendMail(mailOptions, (error) => {
-        if (error) return res.status(500).json({ message: "Error sending email" });
-
-        res.json({ message: "Password reset email sent" });
-      });
+    await userDoc.ref.update({
+      resetToken,
+      resetTokenExpiry
     });
-  });
+
+    const resetUrl = `http://localhost:3000/reset-password/${resetToken}`;
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: 'Password Reset Request',
+      text: `You requested a password reset. Click the link to reset your password: ${resetUrl}. This link expires in 1 hour.`
+    };
+
+    transporter.sendMail(mailOptions, (error) => {
+      if (error) {
+        console.error("Email send error:", error);
+        return res.status(500).json({ message: "Error sending email" });
+      }
+      res.json({ message: "Password reset email sent" });
+    });
+  } catch (err) {
+    console.error("Forgot password error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= RESET PASSWORD ================= */
@@ -289,403 +334,485 @@ app.post("/forgot-password", loginRateLimiter, (req, res) => {
 app.post("/reset-password", async (req, res) => {
   const { token, newPassword } = req.body;
 
-  const query = "SELECT id FROM users WHERE resetToken = ? AND resetTokenExpiry > NOW()";
+  try {
+    const snapshot = await db.collection("users").where("resetToken", "==", token).limit(1).get();
+    if (snapshot.empty) return res.status(400).json({ message: "Invalid or expired token" });
 
-  db.query(query, [token], async (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-
-    if (result.length === 0)
+    const userDoc = snapshot.docs[0];
+    const userData = userDoc.data();
+    if (new Date(userData.resetTokenExpiry) < new Date()) {
       return res.status(400).json({ message: "Invalid or expired token" });
+    }
 
-    const userId = result[0].id;
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    const updateQuery = "UPDATE users SET password = ?, resetToken = NULL, resetTokenExpiry = NULL WHERE id = ?";
-    db.query(updateQuery, [hashedPassword, userId], (err) => {
-      if (err) return res.status(500).json({ message: "Server error" });
-
-      res.json({ message: "Password reset successfully" });
+    await userDoc.ref.update({
+      password: hashedPassword,
+      resetToken: null,
+      resetTokenExpiry: null
     });
-  });
+
+    res.json({ message: "Password reset successfully" });
+  } catch (err) {
+    console.error("Reset password error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= STUDENT PROFILE ================= */
 
-app.get("/student/profile", authMiddleware, (req, res) => {
-  const query = "SELECT id, name, email, phone, roomNumber, profilePic, role, created_at FROM users WHERE id = ?";
+app.get("/student/profile", authMiddleware, async (req, res) => {
+  try {
+    let userDoc = await db.collection("users").doc(String(req.user.id)).get();
+    let userData = null;
 
-  db.query(query, [req.user.id], (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-    if (result.length === 0) return res.status(404).json({ message: "User not found" });
-
-    const player = result[0];
-
-    // Standard fields for all roles
-    player.joinDate = player.created_at;
-    player.hostelName = "ZyrraStay Premium"; // Default hostel name
-    player.enrollmentStatus = "Active Member";
-
-    // If student, fetch real stats
-    if (player.role === 'student') {
-      const attQuery = "SELECT COUNT(*) as present_days FROM attendance WHERE user_id = ?";
-      const compQuery = "SELECT COUNT(*) as active_complaints FROM complaints WHERE user_id = ? AND status = 'pending'";
-      const feeQuery = "SELECT status FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 1";
-
-      db.query(attQuery, [player.id], (err, attRes) => {
-        db.query(compQuery, [player.id], (err, compRes) => {
-          db.query(feeQuery, [player.id], (err, feeRes) => {
-            player.presentDays = attRes ? attRes[0].present_days : 0;
-            player.complaints = compRes ? compRes[0].active_complaints : 0;
-            player.feeStatus = feeRes && feeRes.length > 0 ? feeRes[0].status : 'due';
-
-            // Calculate % since joined (approximate)
-            const joinedDate = new Date(player.created_at);
-            const today = new Date();
-            const diffTime = Math.abs(today - joinedDate);
-            const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-            player.attendance = ((player.presentDays / totalDays) * 100).toFixed(1);
-            if (player.attendance > 100) player.attendance = 100;
-
-            res.json(player);
-          });
-        });
-      });
+    if (userDoc.exists) {
+      userData = { id: userDoc.id, ...userDoc.data() };
     } else {
-      res.json(player);
+      const snap = await db.collection("users").where("id", "==", req.user.id).limit(1).get();
+      if (!snap.empty) {
+        userData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+      }
     }
-  });
+
+    if (!userData) return res.status(404).json({ message: "User not found" });
+
+    userData.joinDate = formatDate(userData.created_at);
+    userData.hostelName = "ZyrraStay Premium";
+    userData.enrollmentStatus = "Active Member";
+
+    if (userData.role === 'student') {
+      const attSnap = await db.collection("attendance").where("user_id", "==", req.user.id).get();
+      const presentDays = attSnap.size;
+
+      const compSnap = await db.collection("complaints").where("user_id", "==", req.user.id).where("status", "==", "pending").get();
+      const activeComplaints = compSnap.size;
+
+      const feeSnap = await db.collection("payments").where("user_id", "==", req.user.id).orderBy("created_at", "desc").limit(1).get();
+      const feeStatus = !feeSnap.empty ? feeSnap.docs[0].data().status : 'due';
+
+      userData.presentDays = presentDays;
+      userData.complaints = activeComplaints;
+      userData.feeStatus = feeStatus;
+
+      const joinedDate = new Date(userData.created_at || Date.now());
+      const today = new Date();
+      const diffTime = Math.abs(today - joinedDate);
+      const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      let attPerc = ((presentDays / totalDays) * 100).toFixed(1);
+      if (attPerc > 100) attPerc = 100;
+      userData.attendance = attPerc;
+    }
+
+    res.json(userData);
+  } catch (err) {
+    console.error("Get profile error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-app.put("/student/profile", authMiddleware, (req, res) => {
+app.put("/student/profile", authMiddleware, async (req, res) => {
   const { name, email, phone } = req.body;
   if (!name || !email) {
     return res.status(400).json({ message: "Name and email are required" });
   }
 
-  const query = "UPDATE users SET name = ?, email = ?, phone = ? WHERE id = ?";
-  db.query(query, [name, email, phone, req.user.id], (err) => {
-    if (err) {
-      if (err.code === "ER_DUP_ENTRY") {
-        return res.status(400).json({ message: "Email already in use" });
+  try {
+    const dupCheck = await db.collection("users").where("email", "==", email).get();
+    let isDup = false;
+    dupCheck.forEach(doc => {
+      const d = doc.data();
+      if (doc.id !== String(req.user.id) && d.id !== req.user.id) {
+        isDup = true;
       }
-      return res.status(500).json({ message: "Error updating profile" });
+    });
+    if (isDup) return res.status(400).json({ message: "Email already in use" });
+
+    let userRef = db.collection("users").doc(String(req.user.id));
+    let docSnap = await userRef.get();
+    if (!docSnap.exists) {
+      const snap = await db.collection("users").where("id", "==", req.user.id).limit(1).get();
+      if (!snap.empty) userRef = snap.docs[0].ref;
     }
 
+    await userRef.update({ name, email, phone: phone || "" });
     res.json({ message: "Profile updated successfully" });
-  });
+  } catch (err) {
+    console.error("Update profile error:", err);
+    res.status(500).json({ message: "Error updating profile" });
+  }
 });
 
 app.post("/student/upload-profile-pic", authMiddleware, (req, res) => {
-  upload.single("profilePic")(req, res, (err) => {
-    if (err) {
-      // Handle multer errors (like fileFilter throwing error)
-      return res.status(400).json({ message: err.message || "File upload failed" });
-    }
-
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
+  upload.single("profilePic")(req, res, async (err) => {
+    if (err) return res.status(400).json({ message: err.message || "File upload failed" });
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
     const imageUrl = `/uploads/${req.file.filename}`;
-    const query = "UPDATE users SET profilePic = ? WHERE id = ?";
-    db.query(query, [imageUrl, req.user.id], (dbErr) => {
-      if (dbErr) return res.status(500).json({ message: "Error saving profile picture" });
+    try {
+      let userRef = db.collection("users").doc(String(req.user.id));
+      let docSnap = await userRef.get();
+      if (!docSnap.exists) {
+        const snap = await db.collection("users").where("id", "==", req.user.id).limit(1).get();
+        if (!snap.empty) userRef = snap.docs[0].ref;
+      }
+      await userRef.update({ profilePic: imageUrl });
       res.json({ message: "Profile picture updated successfully", profilePic: imageUrl });
-    });
+    } catch (dbErr) {
+      console.error("Upload profile pic error:", dbErr);
+      res.status(500).json({ message: "Error saving profile picture" });
+    }
   });
 });
 
 /* ================= STUDENT ROOM ================= */
-app.get("/student/room", authMiddleware, (req, res) => {
-  const userQuery = "SELECT name, roomNumber FROM users WHERE id = ?";
-  db.query(userQuery, [req.user.id], (err, usersRes) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-    if (usersRes.length === 0 || !usersRes[0].roomNumber) {
+app.get("/student/room", authMiddleware, async (req, res) => {
+  try {
+    let userDoc = await db.collection("users").doc(String(req.user.id)).get();
+    let userData = userDoc.exists ? userDoc.data() : null;
+    if (!userData) {
+      const snap = await db.collection("users").where("id", "==", req.user.id).limit(1).get();
+      if (!snap.empty) userData = snap.docs[0].data();
+    }
+
+    if (!userData || !userData.roomNumber) {
       return res.status(404).json({ message: "No room assigned" });
     }
-    const currentUserName = usersRes[0].name;
-    const roomNum = usersRes[0].roomNumber;
 
-    const roomQuery = "SELECT capacity, block, floor, facilities FROM rooms WHERE room_number = ?";
-    db.query(roomQuery, [roomNum], (err, roomsRes) => {
-      if (err) return res.status(500).json({ message: "Server error" });
+    const currentUserName = userData.name;
+    const roomNum = userData.roomNumber;
 
-      const roommatesQuery = "SELECT name FROM users WHERE roomNumber = ? AND role = 'student'";
-      db.query(roommatesQuery, [roomNum], (err, matesRes) => {
-        if (err) return res.status(500).json({ message: "Server error" });
+    const roomSnap = await db.collection("rooms").where("room_number", "==", roomNum).limit(1).get();
+    const roommatesSnap = await db.collection("users").where("roomNumber", "==", roomNum).where("role", "==", "student").get();
 
-        const allOccupants = matesRes.map(m => m.name);
-        const roommates = allOccupants.filter(name => name !== currentUserName);
-        const occupantsCount = allOccupants.length;
+    const allOccupants = roommatesSnap.docs.map(d => d.data().name);
+    const roommates = allOccupants.filter(name => name !== currentUserName);
+    const occupantsCount = allOccupants.length;
 
-        let capacity = 2;
-        let block = "A";
-        let floor = "1st";
-        let facilities = ["WiFi", "AC", "Study Table", "Attached Bathroom"];
+    let capacity = 2;
+    let block = "A";
+    let floor = "1st";
+    let facilities = ["WiFi", "AC", "Study Table", "Attached Bathroom"];
 
-        if (roomsRes.length > 0) {
-          const r = roomsRes[0];
-          capacity = r.capacity || capacity;
-          block = r.block || block;
-          floor = r.floor || floor;
-          try {
-            if (r.facilities) {
-              facilities = typeof r.facilities === 'string' ? JSON.parse(r.facilities) : r.facilities;
-            }
-          } catch (e) { }
-        }
+    if (!roomSnap.empty) {
+      const r = roomSnap.docs[0].data();
+      capacity = r.capacity || capacity;
+      block = r.block || block;
+      floor = r.floor || floor;
+      if (r.facilities) {
+        facilities = typeof r.facilities === 'string' ? JSON.parse(r.facilities) : r.facilities;
+      }
+    }
 
-        res.json({
-          roomNumber: roomNum,
-          block,
-          floor,
-          capacity,
-          occupants: occupantsCount,
-          roommates,
-          facilities,
-          status: "Occupied"
-        });
-      });
+    res.json({
+      roomNumber: roomNum,
+      block,
+      floor,
+      capacity,
+      occupants: occupantsCount,
+      roommates,
+      facilities,
+      status: "Occupied"
     });
-  });
+  } catch (err) {
+    console.error("Student room error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
-
 
 /* ================= COMPLAINT ================= */
 
-app.post("/complaint", authMiddleware, (req, res) => {
+app.post("/complaint", authMiddleware, async (req, res) => {
   const { message, category } = req.body;
 
-  const query = "INSERT INTO complaints (user_id, message, category) VALUES (?, ?, ?)";
-
-  db.query(query, [req.user.id, message, category || 'general'], (err) => {
-    if (err)
-      return res.status(500).json({ message: "Error submitting complaint" });
-
+  try {
+    const docRef = db.collection("complaints").doc();
+    await docRef.set({
+      id: docRef.id,
+      user_id: req.user.id,
+      message,
+      category: category || 'general',
+      status: 'pending',
+      created_at: new Date().toISOString()
+    });
     res.json({ message: "Complaint/Message submitted successfully" });
-  });
+  } catch (err) {
+    console.error("Complaint error:", err);
+    res.status(500).json({ message: "Error submitting complaint" });
+  }
 });
 
 /* ================= LEAVE REQUESTS ================= */
 
-app.post("/student/leave", authMiddleware, (req, res) => {
+app.post("/student/leave", authMiddleware, async (req, res) => {
   const { reason, startDate, endDate } = req.body;
-
   if (!reason || !startDate || !endDate) {
     return res.status(400).json({ message: "Please fill all fields" });
   }
 
-  const query = "INSERT INTO leave_requests (user_id, reason, start_date, end_date, status) VALUES (?, ?, ?, ?, 'pending')";
-  db.query(query, [req.user.id, reason, startDate, endDate], (err) => {
-    if (err) return res.status(500).json({ message: "Error submitting leave request" });
+  try {
+    const docRef = db.collection("leave_requests").doc();
+    await docRef.set({
+      id: docRef.id,
+      user_id: req.user.id,
+      reason,
+      start_date: startDate,
+      end_date: endDate,
+      status: 'pending',
+      created_at: new Date().toISOString()
+    });
     res.json({ message: "Leave Request Submitted Successfully" });
-  });
+  } catch (err) {
+    console.error("Leave error:", err);
+    res.status(500).json({ message: "Error submitting leave request" });
+  }
 });
 
-app.get("/student/leave-history", authMiddleware, (req, res) => {
-  const query = "SELECT id, reason, start_date as startDate, end_date as endDate, status, created_at FROM leave_requests WHERE user_id = ? ORDER BY created_at DESC";
-  db.query(query, [req.user.id], (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+app.get("/student/leave-history", authMiddleware, async (req, res) => {
+  try {
+    const snapshot = await db.collection("leave_requests").where("user_id", "==", req.user.id).get();
+    const result = snapshot.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        reason: d.reason,
+        startDate: d.start_date,
+        endDate: d.end_date,
+        status: d.status,
+        created_at: formatDate(d.created_at)
+      };
+    });
+    result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Leave history error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= NOTIFICATIONS ================= */
 
-app.get("/student/notifications", authMiddleware, (req, res) => {
-  const query = "SELECT id, message, read_status as readStatus, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC";
-  db.query(query, [req.user.id], (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+app.get("/student/notifications", authMiddleware, async (req, res) => {
+  try {
+    const snapshot = await db.collection("notifications").where("user_id", "==", req.user.id).get();
+    const result = snapshot.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        message: d.message,
+        readStatus: d.read_status || false,
+        created_at: formatDate(d.created_at)
+      };
+    });
+    result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Notifications error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
-
 
 /* ================= STUDENT COMPLAINTS ================= */
 
-app.get("/student/complaints", authMiddleware, (req, res) => {
-  const query =
-    "SELECT message, status, created_at, category FROM complaints WHERE user_id = ? ORDER BY created_at DESC";
-
-  db.query(query, [req.user.id], (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-
+app.get("/student/complaints", authMiddleware, async (req, res) => {
+  try {
+    const snapshot = await db.collection("complaints").where("user_id", "==", req.user.id).get();
+    const result = snapshot.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        message: d.message,
+        status: d.status,
+        category: d.category,
+        created_at: formatDate(d.created_at)
+      };
+    });
+    result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Student complaints error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= GET ALL COMPLAINTS (ADMIN) ================= */
 
-app.get("/admin/complaints", authMiddleware, (req, res) => {
-  if (req.user.role !== "admin")
-    return res.status(403).json({ message: "Access denied" });
+app.get("/admin/complaints", authMiddleware, async (req, res) => {
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
 
-  const query = `
-    SELECT c.id, u.name as student, c.message as description, c.created_at as date, c.status, c.category
-    FROM complaints c
-    JOIN users u ON c.user_id = u.id
-    ORDER BY c.created_at DESC
-  `;
+  try {
+    const snapshot = await db.collection("complaints").get();
+    const usersSnap = await db.collection("users").get();
+    const usersMap = {};
+    usersSnap.forEach(u => {
+      const data = u.data();
+      usersMap[u.id] = data.name;
+      if (data.id) usersMap[data.id] = data.name;
+    });
 
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-
+    const result = snapshot.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        student: usersMap[d.user_id] || "Unknown Student",
+        description: d.message,
+        date: formatDate(d.created_at),
+        status: d.status,
+        category: d.category
+      };
+    });
+    result.sort((a, b) => new Date(b.date) - new Date(a.date));
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Admin complaints error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= STUDENT MARK ATTENDANCE ================= */
 
-app.post("/student/mark-attendance", authMiddleware, (req, res) => {
+app.post("/student/mark-attendance", authMiddleware, async (req, res) => {
   let { qrData, latitude, longitude } = req.body;
-
-  if (!qrData) {
-    return res.status(400).json({ message: "No QR data provided" });
-  }
+  if (!qrData) return res.status(400).json({ message: "No QR data provided" });
 
   qrData = String(qrData).trim();
-
   let decoded;
-  // Verify dynamic QR code (JWT with 2m expiry)
   try {
     decoded = jwt.verify(qrData, JWT_SECRET);
     if (decoded.type !== "attendance_qr") throw new Error("Invalid token type");
   } catch (err) {
-    console.error("[ATTENDANCE] QR Verification Failed:", err.message);
     return res.status(400).json({ message: "Expired or Invalid QR Code. Please scan a fresh one." });
   }
 
-  // Geofencing Check
   if (!latitude || !longitude) {
     return res.status(400).json({ message: "Location required. Please allow location access." });
   }
 
-  // DYNAMIC HOSTEL COORDINATES (From the Admin's Device that generated the QR)
-  // If the Admin device couldn't provide location, we use fallback Delhi coordinates
   const HOSTEL_LAT = decoded.lat ? parseFloat(decoded.lat) : parseFloat(process.env.HOSTEL_LAT || "28.6139");
   const HOSTEL_LON = decoded.lng ? parseFloat(decoded.lng) : parseFloat(process.env.HOSTEL_LON || "77.2090");
-  const ALLOWED_RADIUS = 200; // stricter meters
+  const ALLOWED_RADIUS = 200;
 
-  // Haversine formula
-  const R = 6371e3; // metres
+  const R = 6371e3;
   const r1 = latitude * Math.PI / 180;
   const r2 = HOSTEL_LAT * Math.PI / 180;
   const dp = (HOSTEL_LAT - latitude) * Math.PI / 180;
   const dl = (HOSTEL_LON - longitude) * Math.PI / 180;
-
-  const a = Math.sin(dp / 2) * Math.sin(dp / 2) +
-    Math.cos(r1) * Math.cos(r2) *
-    Math.sin(dl / 2) * Math.sin(dl / 2);
+  const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(r1) * Math.cos(r2) * Math.sin(dl / 2) * Math.sin(dl / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c;
 
-  console.log(`[ATTENDANCE] Student Location: ${latitude}, ${longitude}. Distance: ${distance.toFixed(2)}m (Against Hostel: ${HOSTEL_LAT}, ${HOSTEL_LON})`);
-
-  // Allow bypass for local testing if IPs are both localhost and strictly needed, but dynamic coordinates should fix it completely.
   if (distance > ALLOWED_RADIUS) {
     return res.status(400).json({ message: `Access denied. You are ${Math.round(distance)}m away. Must be inside hostel.` });
   }
 
   const now = new Date();
-  const today = now.toLocaleDateString('en-CA'); // YYYY-MM-DD
+  const today = now.toLocaleDateString('en-CA');
 
-  // Check if already marked today
-  const checkQuery = "SELECT id FROM attendance WHERE user_id = ? AND attendance_date = ?";
-  db.query(checkQuery, [req.user.id, today], (err, result) => {
-    if (err) {
-      console.error("[ATTENDANCE] DB Check Error:", err);
-      return res.status(500).json({ message: "Server error during attendance check" });
-    }
+  try {
+    const existing = await db.collection("attendance")
+      .where("user_id", "==", req.user.id)
+      .where("attendance_date", "==", today)
+      .get();
 
-    if (result.length > 0) {
+    if (!existing.empty) {
       return res.status(400).json({ message: "Attendance already marked for today" });
     }
 
-    // Mark attendance
-    const insertQuery = "INSERT INTO attendance (user_id, attendance_date) VALUES (?, ?)";
-    db.query(insertQuery, [req.user.id, today], (err) => {
-      if (err) {
-        console.error("[ATTENDANCE] DB Insert Error:", err);
-        return res.status(500).json({ message: "Failed to mark attendance in database" });
-      }
-
-      console.log(`[ATTENDANCE] Success: Attendance marked for User ID ${req.user.id} on ${today}`);
-      res.json({ message: "Attendance marked successfully" });
+    const docRef = db.collection("attendance").doc();
+    await docRef.set({
+      id: docRef.id,
+      user_id: req.user.id,
+      attendance_date: today,
+      created_at: new Date().toISOString()
     });
-  });
+
+    res.json({ message: "Attendance marked successfully" });
+  } catch (err) {
+    console.error("Attendance mark error:", err);
+    res.status(500).json({ message: "Failed to mark attendance in database" });
+  }
 });
 
 /* ================= ADMIN GENERATE QR ================= */
 
 app.get("/admin/generate-qr", authMiddleware, (req, res) => {
-  // Generate a dynamic QR code token that expires in 2 minutes
+  if (req.user.role !== "admin" && req.user.role !== "warden") {
+    return res.status(403).json({ message: "Access denied" });
+  }
+  const { lat, lng } = req.query;
   const qrData = jwt.sign(
-    { type: "attendance_qr", generatedAt: Date.now() },
+    {
+      type: "attendance_qr",
+      generatedAt: Date.now(),
+      lat: lat || null,
+      lng: lng || null
+    },
     JWT_SECRET,
     { expiresIn: "2m" }
   );
-
   res.json({ qrData });
 });
 
 /* ================= LIVE ATTENDANCE (ADMIN) ================= */
 
-app.get("/admin/attendance-percentage", authMiddleware, (req, res) => {
-  if (req.user.role !== "admin")
-    return res.status(403).json({ message: "Access denied" });
+app.get("/admin/attendance-percentage", authMiddleware, async (req, res) => {
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
 
-  const query = `
-    SELECT id, name, created_at,
-    (SELECT COUNT(*) FROM attendance WHERE user_id = users.id) AS present_days
-    FROM users
-    WHERE role = 'student'
-  `;
+  try {
+    const studentsSnap = await db.collection("users").where("role", "==", "student").get();
+    const formatted = [];
 
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+    for (const doc of studentsSnap.docs) {
+      const u = doc.data();
+      const uId = u.id || doc.id;
+      const attSnap = await db.collection("attendance").where("user_id", "==", uId).get();
+      const presentDays = attSnap.size;
 
-    const formatted = result.map(r => {
-      const joinedDate = new Date(r.created_at);
+      const joinedDate = new Date(u.created_at || Date.now());
       const today = new Date();
       const diffTime = Math.abs(today - joinedDate);
       const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-      const percentage = ((r.present_days / totalDays) * 100).toFixed(1);
-      return {
-        id: r.id,
-        name: r.name,
-        present_days: r.present_days,
+      const percentage = ((presentDays / totalDays) * 100).toFixed(1);
+
+      formatted.push({
+        id: uId,
+        name: u.name,
+        present_days: presentDays,
         totalDays,
         percentage: Math.min(100, parseFloat(percentage))
-      };
-    });
+      });
+    }
 
     res.json(formatted);
-  });
+  } catch (err) {
+    console.error("Admin attendance percentage error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= STUDENT ATTENDANCE PERCENTAGE ================= */
 
-app.get("/student/attendance-percentage", authMiddleware, (req, res) => {
-  // Use current month for attendance %, meaning 1st to today
+app.get("/student/attendance-percentage", authMiddleware, async (req, res) => {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
   const today = now.toISOString().split('T')[0];
   const totalDays = now.getDate();
 
-  const query = `
-    SELECT COUNT(id) AS present_days
-    FROM attendance
-    WHERE user_id = ? AND attendance_date BETWEEN ? AND ?
-  `;
+  try {
+    const attSnap = await db.collection("attendance").where("user_id", "==", req.user.id).get();
+    let presentDays = 0;
+    attSnap.forEach(doc => {
+      const d = doc.data().attendance_date;
+      if (d >= startOfMonth && d <= today) {
+        presentDays++;
+      }
+    });
 
-  db.query(query, [req.user.id, startOfMonth, today], (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-
-    const presentDays = result[0].present_days;
     const percentage = totalDays > 0 ? ((presentDays / totalDays) * 100).toFixed(2) : 0;
-
     res.json({ percentage: parseFloat(percentage), presentDays, totalDays });
-  });
+  } catch (err) {
+    console.error("Student attendance percentage error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= RAZORPAY ================= */
@@ -695,22 +822,14 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-/* ================= GET RAZORPAY KEY ================= */
-
 app.get("/razorpay-key", (req, res) => {
   res.json({ key: process.env.RAZORPAY_KEY_ID });
 });
 
-/* ================= CREATE ORDER ================= */
-
 app.post("/create-order", authMiddleware, async (req, res) => {
-  // don't allow new order if user already paid successfully
-  const checkQuery =
-    "SELECT id FROM payments WHERE user_id = ? AND status = 'success' LIMIT 1";
-  db.query(checkQuery, [req.user.id], async (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-
-    if (result.length > 0) {
+  try {
+    const checkSnap = await db.collection("payments").where("user_id", "==", req.user.id).where("status", "==", "success").limit(1).get();
+    if (!checkSnap.empty) {
       return res.status(400).json({ message: "Fees already paid" });
     }
 
@@ -727,199 +846,323 @@ app.post("/create-order", authMiddleware, async (req, res) => {
       receipt: "receipt_" + Date.now(),
     };
 
-    try {
-      const order = await razorpay.orders.create(options);
-      res.json(order);
-    } catch (err) {
-      res.status(500).json({ message: "Payment error" });
-    }
-  });
+    const order = await razorpay.orders.create(options);
+    res.json(order);
+  } catch (err) {
+    console.error("Create order error:", err);
+    res.status(500).json({ message: "Payment error" });
+  }
 });
 
-/* ================= SAVE PAYMENT ================= */
-
-app.post("/payment-success", authMiddleware, (req, res) => {
+app.post("/payment-success", authMiddleware, async (req, res) => {
   const { amount, status } = req.body;
-
-  const query =
-    "INSERT INTO payments (user_id, amount, status) VALUES (?, ?, ?)";
-
-  db.query(query, [req.user.id, amount, status], (err) => {
-    if (err) return res.status(500).json({ message: "Payment save error" });
-
+  try {
+    const docRef = db.collection("payments").doc();
+    await docRef.set({
+      id: docRef.id,
+      user_id: req.user.id,
+      amount,
+      status,
+      created_at: new Date().toISOString()
+    });
     res.json({ message: "Payment recorded successfully" });
-  });
+  } catch (err) {
+    console.error("Payment save error:", err);
+    res.status(500).json({ message: "Payment save error" });
+  }
 });
 
-/* ================= PAYMENT HISTORY (ADMIN) ================= */
+app.get("/admin/payments", authMiddleware, async (req, res) => {
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
 
-app.get("/admin/payments", authMiddleware, (req, res) => {
-  if (req.user.role !== "admin")
-    return res.status(403).json({ message: "Access denied" });
+  try {
+    const paymentsSnap = await db.collection("payments").get();
+    const usersSnap = await db.collection("users").get();
+    const usersMap = {};
+    usersSnap.forEach(u => {
+      const d = u.data();
+      usersMap[u.id] = d.name;
+      if (d.id) usersMap[d.id] = d.name;
+    });
 
-  const query = `
-    SELECT users.name, payments.amount, payments.status, payments.created_at
-    FROM payments
-    JOIN users ON payments.user_id = users.id
-  `;
-
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-
+    const result = paymentsSnap.docs.map(doc => {
+      const p = doc.data();
+      return {
+        name: usersMap[p.user_id] || "Unknown Student",
+        amount: p.amount,
+        status: p.status,
+        created_at: formatDate(p.created_at)
+      };
+    });
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Admin payments error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= ADMIN PARENTS LIST ================= */
 
-app.get("/admin/parents", authMiddleware, (req, res) => {
-  if (req.user.role !== "admin")
-    return res.status(403).json({ message: "Access denied" });
+app.get("/admin/parents", authMiddleware, async (req, res) => {
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
 
-  const query = `
-    SELECT p.id, p.name, p.email, p.phone,
-      s.name AS student_name
-    FROM users p
-    LEFT JOIN parent_child pc ON pc.parent_id = p.id
-    LEFT JOIN users s ON s.id = pc.student_id
-    WHERE p.role = 'parent'
-  `;
+  try {
+    const parentsSnap = await db.collection("users").where("role", "==", "parent").get();
+    const pcSnap = await db.collection("parent_child").get();
+    const usersSnap = await db.collection("users").get();
 
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-    // rename fields to match frontend expectations
-    const formatted = result.map((r) => ({
-      id: r.id,
-      name: r.name,
-      email: r.email,
-      phone: r.phone || "",
-      student: r.student_name || "(none)"
-    }));
+    const usersMap = {};
+    usersSnap.forEach(u => {
+      const d = u.data();
+      usersMap[u.id] = d.name;
+      if (d.id) usersMap[d.id] = d.name;
+    });
+
+    const pcMap = {};
+    pcSnap.forEach(doc => {
+      const d = doc.data();
+      pcMap[d.parent_id] = d.student_id;
+    });
+
+    const formatted = parentsSnap.docs.map(doc => {
+      const p = doc.data();
+      const pId = p.id || doc.id;
+      const studentId = pcMap[pId] || pcMap[doc.id];
+      return {
+        id: pId,
+        name: p.name,
+        email: p.email,
+        phone: p.phone || "",
+        student: studentId ? (usersMap[studentId] || "(unknown)") : "(none)"
+      };
+    });
+
     res.json(formatted);
-  });
+  } catch (err) {
+    console.error("Admin parents error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= ADMIN STUDENTS LIST ================= */
 
-app.get("/admin/students", authMiddleware, (req, res) => {
+app.get("/admin/students", authMiddleware, async (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
 
-  const query = "SELECT id, name, email, roomNumber as room, 'active' as status FROM users WHERE role = 'student'";
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    const snapshot = await db.collection("users").where("role", "==", "student").get();
+    const result = snapshot.docs.map(doc => {
+      const u = doc.data();
+      return {
+        id: u.id || doc.id,
+        name: u.name,
+        email: u.email,
+        room: u.roomNumber || null,
+        status: 'active'
+      };
+    });
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Admin students error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= ADMIN ROOMS LIST ================= */
 
-app.get("/admin/rooms", authMiddleware, (req, res) => {
+app.get("/admin/rooms", authMiddleware, async (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
 
-  const query = "SELECT room_number as roomNumber, capacity, occupied, block, floor, status FROM (SELECT r.*, CASE WHEN occupied >= capacity THEN 'Full' ELSE 'Available' END as status FROM rooms r) t";
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    const snapshot = await db.collection("rooms").get();
+    const result = snapshot.docs.map(doc => {
+      const r = doc.data();
+      const cap = Number(r.capacity) || 0;
+      const occ = Number(r.occupied) || 0;
+      return {
+        roomNumber: r.room_number || r.roomNumber || doc.id,
+        capacity: cap,
+        occupied: occ,
+        block: r.block || "A",
+        floor: r.floor || "1st",
+        status: occ >= cap ? "Full" : "Available"
+      };
+    });
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Admin rooms error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= ADMIN CREATE ROOM ================= */
-app.post("/admin/rooms", authMiddleware, (req, res) => {
+
+app.post("/admin/rooms", authMiddleware, async (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
 
   const { roomNumber, capacity, block, floor } = req.body;
   if (!roomNumber || !capacity) return res.status(400).json({ message: "Room number and capacity are required" });
 
-  const query = "INSERT INTO rooms (room_number, capacity, block, floor) VALUES (?, ?, ?, ?)";
-  db.query(query, [roomNumber, capacity, block, floor], (err) => {
-    if (err) {
-      if (err.code === "ER_DUP_ENTRY") return res.status(400).json({ message: "Room already exists" });
-      return res.status(500).json({ message: "Server error" });
+  try {
+    const roomSnap = await db.collection("rooms").where("room_number", "==", String(roomNumber)).get();
+    if (!roomSnap.empty) {
+      return res.status(400).json({ message: "Room already exists" });
     }
+
+    await db.collection("rooms").doc(String(roomNumber)).set({
+      room_number: String(roomNumber),
+      capacity: Number(capacity),
+      occupied: 0,
+      block: block || "A",
+      floor: floor || "1st",
+      status: "Available"
+    });
+
     res.json({ message: "Room created successfully" });
-  });
+  } catch (err) {
+    console.error("Create room error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= ADMIN DELETE ROOM ================= */
-app.delete("/admin/rooms/:roomNumber", authMiddleware, (req, res) => {
+
+app.delete("/admin/rooms/:roomNumber", authMiddleware, async (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
 
   const roomNumber = req.params.roomNumber;
-  db.query("DELETE FROM rooms WHERE room_number = ?", [roomNumber], (err) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    await db.collection("rooms").doc(String(roomNumber)).delete();
+    const roomSnap = await db.collection("rooms").where("room_number", "==", String(roomNumber)).get();
+    roomSnap.forEach(d => d.ref.delete());
 
-    // Unassign students from this room
-    db.query("UPDATE users SET roomNumber = NULL WHERE roomNumber = ?", [roomNumber], () => {
-      res.json({ message: "Room deleted successfully" });
+    const studentsSnap = await db.collection("users").where("roomNumber", "==", String(roomNumber)).get();
+    const batch = db.batch();
+    studentsSnap.forEach(doc => {
+      batch.update(doc.ref, { roomNumber: null });
     });
-  });
+    await batch.commit();
+
+    res.json({ message: "Room deleted successfully" });
+  } catch (err) {
+    console.error("Delete room error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= ADMIN WARDENS LIST ================= */
 
-app.get("/admin/wardens", authMiddleware, (req, res) => {
+app.get("/admin/wardens", authMiddleware, async (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
 
-  const query = "SELECT id, name, email, phone FROM users WHERE role = 'warden'";
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    const snapshot = await db.collection("users").where("role", "==", "warden").get();
+    const result = snapshot.docs.map(doc => {
+      const u = doc.data();
+      return {
+        id: u.id || doc.id,
+        name: u.name,
+        email: u.email,
+        phone: u.phone || ""
+      };
+    });
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Admin wardens error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= ADMIN ASSIGN ROOM ================= */
 
-app.put("/admin/assign-room", authMiddleware, (req, res) => {
+app.put("/admin/assign-room", authMiddleware, async (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
-
   const { studentId, roomNumber } = req.body;
 
-  const updateQuery = "UPDATE users SET roomNumber = ? WHERE id = ?";
-  db.query(updateQuery, [roomNumber, studentId], (err) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    let userRef = db.collection("users").doc(String(studentId));
+    let userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      const snap = await db.collection("users").where("id", "==", studentId).limit(1).get();
+      if (!snap.empty) userRef = snap.docs[0].ref;
+    }
 
-    // Update occupied count for all affected rooms
-    const updateRoomCount = "UPDATE rooms r SET occupied = (SELECT COUNT(*) FROM users u WHERE u.roomNumber = r.room_number) WHERE room_number IN (SELECT roomNumber FROM users WHERE id = ?) OR room_number = ?";
-    db.query(updateRoomCount, [studentId, roomNumber], () => {
-      // Refresh all just to be safe
-      db.query("UPDATE rooms r SET occupied = (SELECT COUNT(*) FROM users u WHERE u.roomNumber = r.room_number)", () => {
-        res.json({ message: "Room assigned successfully" });
-      });
-    });
-  });
+    await userRef.update({ roomNumber: String(roomNumber) });
+
+    // recalculate room occupancy counts
+    const roomsSnap = await db.collection("rooms").get();
+    for (const doc of roomsSnap.docs) {
+      const rNum = doc.data().room_number || doc.id;
+      const countSnap = await db.collection("users").where("roomNumber", "==", rNum).get();
+      await doc.ref.update({ occupied: countSnap.size });
+    }
+
+    res.json({ message: "Room assigned successfully" });
+  } catch (err) {
+    console.error("Assign room error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= ADMIN UNASSIGN ROOM ================= */
 
-app.put("/admin/unassign-room", authMiddleware, (req, res) => {
+app.put("/admin/unassign-room", authMiddleware, async (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
-
   const { studentId, roomNumber } = req.body;
 
-  const updateQuery = "UPDATE users SET roomNumber = NULL WHERE id = ?";
-  db.query(updateQuery, [studentId], (err) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    let userRef = db.collection("users").doc(String(studentId));
+    let userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      const snap = await db.collection("users").where("id", "==", studentId).limit(1).get();
+      if (!snap.empty) userRef = snap.docs[0].ref;
+    }
+
+    await userRef.update({ roomNumber: null });
 
     if (roomNumber) {
-      db.query("UPDATE rooms r SET occupied = (SELECT COUNT(*) FROM users u WHERE u.roomNumber = r.room_number) WHERE room_number = ?", [roomNumber], () => {
-        res.json({ message: "Room unassigned successfully" });
-      });
-    } else {
-      res.json({ message: "Room unassigned successfully" });
+      const countSnap = await db.collection("users").where("roomNumber", "==", String(roomNumber)).get();
+      const roomDoc = db.collection("rooms").doc(String(roomNumber));
+      const rSnap = await roomDoc.get();
+      if (rSnap.exists) await roomDoc.update({ occupied: countSnap.size });
     }
-  });
+
+    res.json({ message: "Room unassigned successfully" });
+  } catch (err) {
+    console.error("Unassign room error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= ADMIN FEES LIST ================= */
 
-app.get("/admin/fees", authMiddleware, (req, res) => {
+app.get("/admin/fees", authMiddleware, async (req, res) => {
   if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
 
-  const query = "SELECT p.*, u.name as studentName FROM payments p JOIN users u ON p.user_id = u.id";
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    const paymentsSnap = await db.collection("payments").get();
+    const usersSnap = await db.collection("users").get();
+    const usersMap = {};
+    usersSnap.forEach(u => {
+      const d = u.data();
+      usersMap[u.id] = d.name;
+      if (d.id) usersMap[d.id] = d.name;
+    });
+
+    const result = paymentsSnap.docs.map(doc => {
+      const p = doc.data();
+      return {
+        id: doc.id,
+        ...p,
+        studentName: usersMap[p.user_id] || "Unknown Student",
+        created_at: formatDate(p.created_at)
+      };
+    });
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Admin fees error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= ADMIN CHART DATA ================= */
@@ -956,374 +1199,452 @@ app.get("/admin/complaints-chart", authMiddleware, (req, res) => {
 
 /* ================= ADMIN RECENT ACTIVITY ================= */
 
-app.get("/admin/recent-activity", authMiddleware, (req, res) => {
-  const query = `
-    (SELECT CONCAT('User ', name, ' submitted a complaint') as description, created_at as date, 'complaint' as status FROM complaints JOIN users ON complaints.user_id = users.id)
-    UNION
-    (SELECT CONCAT('Payment of ', amount, ' from ', name) as description, created_at as date, status FROM payments JOIN users ON payments.user_id = users.id)
-    UNION
-    (SELECT CONCAT(name, ' requested leave') as description, created_at as date, status FROM leave_requests JOIN users ON leave_requests.user_id = users.id)
-    ORDER BY date DESC LIMIT 10
-  `;
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-    res.json(result);
-  });
-});
+app.get("/admin/recent-activity", authMiddleware, async (req, res) => {
+  try {
+    const usersSnap = await db.collection("users").get();
+    const usersMap = {};
+    usersSnap.forEach(u => {
+      const d = u.data();
+      usersMap[u.id] = d.name;
+      if (d.id) usersMap[d.id] = d.name;
+    });
 
+    const activities = [];
+
+    const complaintsSnap = await db.collection("complaints").get();
+    complaintsSnap.forEach(doc => {
+      const d = doc.data();
+      activities.push({
+        description: `User ${usersMap[d.user_id] || 'Student'} submitted a complaint`,
+        date: formatDate(d.created_at),
+        status: 'complaint'
+      });
+    });
+
+    const paymentsSnap = await db.collection("payments").get();
+    paymentsSnap.forEach(doc => {
+      const d = doc.data();
+      activities.push({
+        description: `Payment of ${d.amount} from ${usersMap[d.user_id] || 'Student'}`,
+        date: formatDate(d.created_at),
+        status: d.status || 'success'
+      });
+    });
+
+    const leaveSnap = await db.collection("leave_requests").get();
+    leaveSnap.forEach(doc => {
+      const d = doc.data();
+      activities.push({
+        description: `${usersMap[d.user_id] || 'Student'} requested leave`,
+        date: formatDate(d.created_at),
+        status: d.status || 'pending'
+      });
+    });
+
+    activities.sort((a, b) => new Date(b.date) - new Date(a.date));
+    res.json(activities.slice(0, 10));
+  } catch (err) {
+    console.error("Recent activity error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 /* ================= WARDEN ENDPOINTS ================= */
 
-app.get("/warden/students", authMiddleware, (req, res) => {
-  if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
-  const query = "SELECT id, name, email, roomNumber, phone, 'active' as status FROM users WHERE role = 'student'";
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-    res.json(result);
-  });
-});
-
-app.get("/warden/rooms", authMiddleware, (req, res) => {
+app.get("/warden/students", authMiddleware, async (req, res) => {
   if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
 
-  const query = "SELECT room_number as roomNumber, capacity, occupied, block, floor, status FROM (SELECT r.*, CASE WHEN occupied >= capacity THEN 'Full' ELSE 'Available' END as status FROM rooms r) t";
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    const snapshot = await db.collection("users").where("role", "==", "student").get();
+    const result = snapshot.docs.map(doc => {
+      const u = doc.data();
+      return {
+        id: u.id || doc.id,
+        name: u.name,
+        email: u.email,
+        roomNumber: u.roomNumber || null,
+        phone: u.phone || "",
+        status: 'active'
+      };
+    });
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Warden students error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-app.post("/warden/rooms", authMiddleware, (req, res) => {
+app.get("/warden/rooms", authMiddleware, async (req, res) => {
+  if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
+
+  try {
+    const snapshot = await db.collection("rooms").get();
+    const result = snapshot.docs.map(doc => {
+      const r = doc.data();
+      const cap = Number(r.capacity) || 0;
+      const occ = Number(r.occupied) || 0;
+      return {
+        roomNumber: r.room_number || r.roomNumber || doc.id,
+        capacity: cap,
+        occupied: occ,
+        block: r.block || "A",
+        floor: r.floor || "1st",
+        status: occ >= cap ? "Full" : "Available"
+      };
+    });
+    res.json(result);
+  } catch (err) {
+    console.error("Warden rooms error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.post("/warden/rooms", authMiddleware, async (req, res) => {
   if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
 
   const { roomNumber, capacity, block, floor } = req.body;
   if (!roomNumber || !capacity) return res.status(400).json({ message: "Room number and capacity are required" });
 
-  const query = "INSERT INTO rooms (room_number, capacity, block, floor) VALUES (?, ?, ?, ?)";
-  db.query(query, [roomNumber, capacity, block, floor], (err) => {
-    if (err) {
-      if (err.code === "ER_DUP_ENTRY") return res.status(400).json({ message: "Room already exists" });
-      return res.status(500).json({ message: "Server error" });
-    }
+  try {
+    const roomSnap = await db.collection("rooms").where("room_number", "==", String(roomNumber)).get();
+    if (!roomSnap.empty) return res.status(400).json({ message: "Room already exists" });
+
+    await db.collection("rooms").doc(String(roomNumber)).set({
+      room_number: String(roomNumber),
+      capacity: Number(capacity),
+      occupied: 0,
+      block: block || "A",
+      floor: floor || "1st",
+      status: "Available"
+    });
+
     res.json({ message: "Room created successfully" });
-  });
+  } catch (err) {
+    console.error("Warden create room error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-app.delete("/warden/rooms/:roomNumber", authMiddleware, (req, res) => {
+app.delete("/warden/rooms/:roomNumber", authMiddleware, async (req, res) => {
   if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
 
   const roomNumber = req.params.roomNumber;
-  db.query("DELETE FROM rooms WHERE room_number = ?", [roomNumber], (err) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    await db.collection("rooms").doc(String(roomNumber)).delete();
+    const studentsSnap = await db.collection("users").where("roomNumber", "==", String(roomNumber)).get();
+    const batch = db.batch();
+    studentsSnap.forEach(doc => batch.update(doc.ref, { roomNumber: null }));
+    await batch.commit();
 
-    // Unassign students from this room
-    db.query("UPDATE users SET roomNumber = NULL WHERE roomNumber = ?", [roomNumber], () => {
-      res.json({ message: "Room deleted successfully" });
-    });
-  });
+    res.json({ message: "Room deleted successfully" });
+  } catch (err) {
+    console.error("Warden delete room error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-app.put("/warden/assign-room", authMiddleware, (req, res) => {
+app.put("/warden/assign-room", authMiddleware, async (req, res) => {
   if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
-
   const { studentId, roomNumber } = req.body;
 
-  const updateQuery = "UPDATE users SET roomNumber = ? WHERE id = ?";
-  db.query(updateQuery, [roomNumber, studentId], (err) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    let userRef = db.collection("users").doc(String(studentId));
+    let userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      const snap = await db.collection("users").where("id", "==", studentId).limit(1).get();
+      if (!snap.empty) userRef = snap.docs[0].ref;
+    }
 
-    db.query("UPDATE rooms r SET occupied = (SELECT COUNT(*) FROM users u WHERE u.roomNumber = r.room_number)", () => {
-      res.json({ message: "Room assigned successfully" });
-    });
-  });
+    await userRef.update({ roomNumber: String(roomNumber) });
+
+    const roomsSnap = await db.collection("rooms").get();
+    for (const doc of roomsSnap.docs) {
+      const rNum = doc.data().room_number || doc.id;
+      const countSnap = await db.collection("users").where("roomNumber", "==", rNum).get();
+      await doc.ref.update({ occupied: countSnap.size });
+    }
+
+    res.json({ message: "Room assigned successfully" });
+  } catch (err) {
+    console.error("Warden assign room error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-app.put("/warden/unassign-room", authMiddleware, (req, res) => {
+app.put("/warden/unassign-room", authMiddleware, async (req, res) => {
   if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
-
   const { studentId, roomNumber } = req.body;
 
-  const updateQuery = "UPDATE users SET roomNumber = NULL WHERE id = ?";
-  db.query(updateQuery, [studentId], (err) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    let userRef = db.collection("users").doc(String(studentId));
+    let userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      const snap = await db.collection("users").where("id", "==", studentId).limit(1).get();
+      if (!snap.empty) userRef = snap.docs[0].ref;
+    }
+
+    await userRef.update({ roomNumber: null });
 
     if (roomNumber) {
-      db.query("UPDATE rooms r SET occupied = (SELECT COUNT(*) FROM users u WHERE u.roomNumber = r.room_number) WHERE room_number = ?", [roomNumber], () => {
-        res.json({ message: "Room unassigned successfully" });
-      });
-    } else {
-      res.json({ message: "Room unassigned successfully" });
+      const countSnap = await db.collection("users").where("roomNumber", "==", String(roomNumber)).get();
+      const roomDoc = db.collection("rooms").doc(String(roomNumber));
+      const rSnap = await roomDoc.get();
+      if (rSnap.exists) await roomDoc.update({ occupied: countSnap.size });
     }
-  });
+
+    res.json({ message: "Room unassigned successfully" });
+  } catch (err) {
+    console.error("Warden unassign room error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-app.get("/warden/attendance", authMiddleware, (req, res) => {
+app.get("/warden/attendance", authMiddleware, async (req, res) => {
   if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
   const today = new Date().toLocaleDateString('en-CA');
-  const query = `
-    SELECT u.id, u.name, 
-    CASE WHEN a.id IS NOT NULL THEN 'present' ELSE 'absent' END as status,
-    ? as date
-    FROM users u
-    LEFT JOIN attendance a ON u.id = a.user_id AND a.attendance_date = ?
-    WHERE u.role = 'student'
-  `;
-  db.query(query, [today, today], (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-    res.json(result);
-  });
-});
 
-app.get("/warden/complaints", authMiddleware, (req, res) => {
-  if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
-  const query = "SELECT c.id, c.message as complaint, c.status, c.created_at as date, c.category, u.name as student FROM complaints c JOIN users u ON c.user_id = u.id ORDER BY c.created_at DESC";
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-    res.json(result);
-  });
-});
+  try {
+    const studentsSnap = await db.collection("users").where("role", "==", "student").get();
+    const result = [];
 
-app.get("/admin/generate-qr", authMiddleware, (req, res) => {
-  // Restrict to admin/warden
-  if (req.user.role !== "admin" && req.user.role !== "warden") {
-    return res.status(403).json({ message: "Access denied" });
+    for (const doc of studentsSnap.docs) {
+      const u = doc.data();
+      const uId = u.id || doc.id;
+      const attSnap = await db.collection("attendance")
+        .where("user_id", "==", uId)
+        .where("attendance_date", "==", today)
+        .get();
+
+      result.push({
+        id: uId,
+        name: u.name,
+        status: !attSnap.empty ? 'present' : 'absent',
+        date: today
+      });
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error("Warden attendance error:", err);
+    res.status(500).json({ message: "Server error" });
   }
-
-  // Accept admin's current location from query and embed it into the QR code
-  const { lat, lng } = req.query;
-
-  // Generate a dynamic QR code token that expires in 2 minutes
-  const qrData = jwt.sign(
-    {
-      type: "attendance_qr",
-      generatedAt: Date.now(),
-      lat: lat || null,
-      lng: lng || null
-    },
-    JWT_SECRET,
-    { expiresIn: "2m" }
-  );
-
-  res.json({ qrData });
 });
 
-app.put("/warden/complaint/:id", authMiddleware, (req, res) => {
+app.get("/warden/complaints", authMiddleware, async (req, res) => {
+  if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
+
+  try {
+    const snapshot = await db.collection("complaints").get();
+    const usersSnap = await db.collection("users").get();
+    const usersMap = {};
+    usersSnap.forEach(u => {
+      const d = u.data();
+      usersMap[u.id] = d.name;
+      if (d.id) usersMap[d.id] = d.name;
+    });
+
+    const result = snapshot.docs.map(doc => {
+      const c = doc.data();
+      return {
+        id: doc.id,
+        complaint: c.message,
+        status: c.status,
+        date: formatDate(c.created_at),
+        category: c.category,
+        student: usersMap[c.user_id] || "Unknown Student"
+      };
+    });
+    result.sort((a, b) => new Date(b.date) - new Date(a.date));
+    res.json(result);
+  } catch (err) {
+    console.error("Warden complaints error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.put("/warden/complaint/:id", authMiddleware, async (req, res) => {
   if (req.user.role !== "warden" && req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
   const { status } = req.body;
   const complaintId = req.params.id;
-  db.query("UPDATE complaints SET status = ? WHERE id = ?", [status, complaintId], (err) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+
+  try {
+    await db.collection("complaints").doc(String(complaintId)).update({ status });
     res.json({ message: "Complaint status updated" });
-  });
+  } catch (err) {
+    console.error("Update complaint status error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-app.get("/warden/leave-requests", authMiddleware, (req, res) => {
+app.get("/warden/leave-requests", authMiddleware, async (req, res) => {
   if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
-  const query = `
-    SELECT l.id, l.reason, l.start_date as startDate, l.end_date as endDate, l.status, u.name as student, 'student' as type 
-    FROM leave_requests l JOIN users u ON l.user_id = u.id 
-    UNION 
-    SELECT p.id, p.reason, p.start_date as startDate, p.end_date as endDate, p.status, u.name as student, 'parent' as type 
-    FROM parent_leave_requests p JOIN users u ON p.student_id = u.id 
-    ORDER BY startDate DESC
-  `;
-  db.query(query, (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+
+  try {
+    const usersSnap = await db.collection("users").get();
+    const usersMap = {};
+    usersSnap.forEach(u => {
+      const d = u.data();
+      usersMap[u.id] = d.name;
+      if (d.id) usersMap[d.id] = d.name;
+    });
+
+    const result = [];
+
+    const studentLeaves = await db.collection("leave_requests").get();
+    studentLeaves.forEach(doc => {
+      const l = doc.data();
+      result.push({
+        id: doc.id,
+        reason: l.reason,
+        startDate: l.start_date,
+        endDate: l.end_date,
+        status: l.status,
+        student: usersMap[l.user_id] || "Student",
+        type: 'student'
+      });
+    });
+
+    const parentLeaves = await db.collection("parent_leave_requests").get();
+    parentLeaves.forEach(doc => {
+      const l = doc.data();
+      result.push({
+        id: doc.id,
+        reason: l.reason,
+        startDate: l.start_date,
+        endDate: l.end_date,
+        status: l.status,
+        student: usersMap[l.student_id] || "Student",
+        type: 'parent'
+      });
+    });
+
+    result.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
     res.json(result);
-  });
+  } catch (err) {
+    console.error("Warden leave requests error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
-app.put("/warden/leave-requests/:id", authMiddleware, (req, res) => {
+app.put("/warden/leave-requests/:id", authMiddleware, async (req, res) => {
   if (req.user.role !== "warden") return res.status(403).json({ message: "Access denied" });
   const { status, type } = req.body;
   const requestId = req.params.id;
 
-  const table = type === 'parent' ? 'parent_leave_requests' : 'leave_requests';
-  const query = `UPDATE ${table} SET status = ? WHERE id = ?`;
-
-  db.query(query, [status, requestId], (err) => {
-    if (err) return res.status(500).json({ message: "Server error" });
+  try {
+    const collectionName = type === 'parent' ? 'parent_leave_requests' : 'leave_requests';
+    await db.collection(collectionName).doc(String(requestId)).update({ status });
     res.json({ message: `Leave request ${status} successfully` });
-  });
+  } catch (err) {
+    console.error("Update leave request error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
-
 
 /* ================= PAYMENT STATUS (STUDENT) ================= */
 
-app.get("/payment-status", authMiddleware, (req, res) => {
-  const query =
-    "SELECT amount, status, created_at FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 1";
+app.get("/payment-status", authMiddleware, async (req, res) => {
+  try {
+    const snapshot = await db.collection("payments")
+      .where("user_id", "==", req.user.id)
+      .get();
 
-  db.query(query, [req.user.id], (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-
-    if (result.length === 0) {
+    if (snapshot.empty) {
       return res.json({ paid: false });
     }
 
-    const payment = result[0];
+    const docs = snapshot.docs.map(d => d.data());
+    docs.sort((a, b) => new Date(formatDate(b.created_at)) - new Date(formatDate(a.created_at)));
+    const payment = docs[0];
+
     res.json({
       paid: payment.status === "success",
       amount: payment.amount,
-      date: payment.created_at,
+      date: formatDate(payment.created_at),
     });
-  });
+  } catch (err) {
+    console.error("Payment status error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= PARENT-CHILD RELATIONSHIP SUPPORT ================= */
 
-// ensure mapping table exists when server starts
-const parentChildTableSql = `
-CREATE TABLE IF NOT EXISTS parent_child (
-  parent_id INT NOT NULL,
-  student_id INT NOT NULL,
-  PRIMARY KEY (parent_id, student_id),
-  FOREIGN KEY (parent_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
-)`;
-db.query(parentChildTableSql, (err) => {
-  if (err) console.error("Failed to create parent_child table", err);
-});
-
-// ensure attendance table exists when server starts
-const attendanceTableSql = `
-CREATE TABLE IF NOT EXISTS attendance (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  attendance_date DATE NOT NULL DEFAULT (CURRENT_DATE),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uq_user_date (user_id, attendance_date),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-)`;
-db.query(attendanceTableSql, (err) => {
-  if (err) console.error("Failed to create attendance table", err);
-});
-
-// ensure parent_leave_requests table exists
-const parentLeaveTableSql = `
-CREATE TABLE IF NOT EXISTS parent_leave_requests (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  parent_id INT NOT NULL,
-  student_id INT NOT NULL,
-  reason TEXT NOT NULL,
-  start_date DATE NOT NULL,
-  end_date DATE NOT NULL,
-  status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (parent_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
-)`;
-db.query(parentLeaveTableSql, (err) => {
-  if (err) console.error("Failed to create parent_leave_requests table", err);
-});
-
-// ensure rooms table exists
-db.query(`CREATE TABLE IF NOT EXISTS rooms (
-  room_number VARCHAR(20) PRIMARY KEY,
-  capacity INT NOT NULL,
-  occupied INT DEFAULT 0,
-  block VARCHAR(10),
-  floor VARCHAR(10),
-  facilities JSON,
-  status VARCHAR(20) DEFAULT 'Available'
-)`, (err) => err && console.error("Failed to create rooms table", err));
-
-// ensure complaints table exists
-db.query(`CREATE TABLE IF NOT EXISTS complaints (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  message TEXT NOT NULL,
-  category VARCHAR(50) DEFAULT 'general',
-  status VARCHAR(20) DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-)`, (err) => err && console.error("Failed to create complaints table", err));
-
-// ensure leave_requests table exists
-db.query(`CREATE TABLE IF NOT EXISTS leave_requests (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  reason TEXT NOT NULL,
-  start_date DATE NOT NULL,
-  end_date DATE NOT NULL,
-  status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-)`, (err) => err && console.error("Failed to create leave_requests table", err));
-
-// ensure payments table exists
-db.query(`CREATE TABLE IF NOT EXISTS payments (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  amount DECIMAL(10,2) NOT NULL,
-  status VARCHAR(50),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-)`, (err) => err && console.error("Failed to create payments table", err));
-
-// helper to get child id for the logged-in parent
-function getChildId(parentId) {
-  return new Promise((resolve, reject) => {
-    const q = "SELECT student_id FROM parent_child WHERE parent_id = ? LIMIT 1";
-    db.query(q, [parentId], (err, result) => {
-      if (err) return reject(err);
-      if (result.length === 0) return resolve(null);
-      resolve(result[0].student_id);
-    });
-  });
+async function getChildId(parentId) {
+  const snapshot = await db.collection("parent_child").where("parent_id", "==", parentId).limit(1).get();
+  if (snapshot.empty) return null;
+  return snapshot.docs[0].data().student_id;
 }
 
 /* ================= ADMIN ASSIGN PARENT ================= */
 
 app.post("/admin/assign-parent", authMiddleware, async (req, res) => {
-  if (req.user.role !== "admin")
-    return res.status(403).json({ message: "Access denied" });
-
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Access denied" });
   const { parentId, studentId } = req.body;
-  if (!parentId || !studentId)
-    return res.status(400).json({ message: "parentId and studentId required" });
+  if (!parentId || !studentId) return res.status(400).json({ message: "parentId and studentId required" });
 
-  const insert =
-    "INSERT INTO parent_child (parent_id, student_id) VALUES (?, ?)";
+  try {
+    const existing = await db.collection("parent_child")
+      .where("parent_id", "==", parentId)
+      .where("student_id", "==", studentId)
+      .get();
 
-  db.query(insert, [parentId, studentId], (err) => {
-    if (err) {
-      if (err.code === "ER_DUP_ENTRY")
-        return res.status(400).json({ message: "Mapping already exists" });
-      return res.status(500).json({ message: "Server error" });
+    if (!existing.empty) {
+      return res.status(400).json({ message: "Mapping already exists" });
     }
+
+    await db.collection("parent_child").add({
+      parent_id: parentId,
+      student_id: studentId,
+      created_at: new Date().toISOString()
+    });
+
     res.json({ message: "Parent assigned successfully" });
-  });
+  } catch (err) {
+    console.error("Assign parent error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 /* ================= PARENT LINK STUDENT (PARENT) ================= */
 
 app.post("/parent/link-student", authMiddleware, async (req, res) => {
-  if (req.user.role !== "parent")
-    return res.status(403).json({ message: "Access denied" });
-
+  if (req.user.role !== "parent") return res.status(403).json({ message: "Access denied" });
   const { studentEmail } = req.body;
-  if (!studentEmail)
-    return res.status(400).json({ message: "studentEmail is required" });
+  if (!studentEmail) return res.status(400).json({ message: "studentEmail is required" });
 
-  const studentQuery = "SELECT id FROM users WHERE email = ? AND role = 'student' LIMIT 1";
-  db.query(studentQuery, [studentEmail], (err, result) => {
-    if (err) return res.status(500).json({ message: "Server error" });
-    if (result.length === 0)
-      return res.status(404).json({ message: "Student not found" });
+  try {
+    const studentSnap = await db.collection("users")
+      .where("email", "==", String(studentEmail).trim().toLowerCase())
+      .where("role", "==", "student")
+      .limit(1)
+      .get();
 
-    const studentId = result[0].id;
-    const insert = "INSERT INTO parent_child (parent_id, student_id) VALUES (?, ?)";
+    if (studentSnap.empty) return res.status(404).json({ message: "Student not found" });
 
-    db.query(insert, [req.user.id, studentId], (err) => {
-      if (err) {
-        if (err.code === "ER_DUP_ENTRY")
-          return res.status(400).json({ message: "Parent already linked to this student" });
-        return res.status(500).json({ message: "Server error" });
-      }
-      res.json({ message: "Parent linked to student successfully" });
+    const studentDoc = studentSnap.docs[0];
+    const studentId = studentDoc.data().id || studentDoc.id;
+
+    const existing = await db.collection("parent_child")
+      .where("parent_id", "==", req.user.id)
+      .where("student_id", "==", studentId)
+      .get();
+
+    if (!existing.empty) {
+      return res.status(400).json({ message: "Parent already linked to this student" });
+    }
+
+    await db.collection("parent_child").add({
+      parent_id: req.user.id,
+      student_id: studentId,
+      created_at: new Date().toISOString()
     });
-  });
+
+    res.json({ message: "Parent linked to student successfully" });
+  } catch (err) {
+    console.error("Parent link student error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 app.get("/parent/child", authMiddleware, async (req, res) => {
@@ -1331,136 +1652,158 @@ app.get("/parent/child", authMiddleware, async (req, res) => {
   try {
     const childId = await getChildId(req.user.id);
     if (!childId) return res.json({ name: "No child linked" });
-    db.query("SELECT name FROM users WHERE id = ?", [childId], (err, result) => {
-      if (err) return res.status(500).json({ message: "Server error" });
-      res.json({ name: result[0]?.name || "Unknown" });
-    });
+
+    let childDoc = await db.collection("users").doc(String(childId)).get();
+    let name = childDoc.exists ? childDoc.data().name : null;
+    if (!name) {
+      const snap = await db.collection("users").where("id", "==", childId).limit(1).get();
+      if (!snap.empty) name = snap.docs[0].data().name;
+    }
+
+    res.json({ name: name || "Unknown" });
   } catch (err) {
+    console.error("Parent child error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
 app.get("/parent/attendance-percentage", authMiddleware, async (req, res) => {
-  if (req.user.role !== "parent")
-    return res.status(403).json({ message: "Access denied" });
+  if (req.user.role !== "parent") return res.status(403).json({ message: "Access denied" });
 
   try {
     const childId = await getChildId(req.user.id);
     if (!childId) return res.status(404).json({ message: "No child assigned" });
 
     const totalDays = 30;
-    const query = `
-      SELECT COUNT(id) AS present_days
-      FROM attendance
-      WHERE user_id = ?
-    `;
+    const attSnap = await db.collection("attendance").where("user_id", "==", childId).get();
+    const presentDays = attSnap.size;
+    const percentage = ((presentDays / totalDays) * 100).toFixed(2);
 
-    db.query(query, [childId], (err, result) => {
-      if (err) return res.status(500).json({ message: "Server error" });
-      const presentDays = result[0].present_days;
-      const percentage = ((presentDays / totalDays) * 100).toFixed(2);
-      res.json({ percentage: parseFloat(percentage), presentDays, totalDays });
-    });
+    res.json({ percentage: parseFloat(percentage), presentDays, totalDays });
   } catch (err) {
+    console.error("Parent attendance percentage error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
 app.get("/parent/payment-status", authMiddleware, async (req, res) => {
-  if (req.user.role !== "parent")
-    return res.status(403).json({ message: "Access denied" });
+  if (req.user.role !== "parent") return res.status(403).json({ message: "Access denied" });
 
   try {
     const childId = await getChildId(req.user.id);
     if (!childId) return res.status(404).json({ message: "No child assigned" });
 
-    const query =
-      "SELECT amount, status, created_at FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 1";
+    const snapshot = await db.collection("payments").where("user_id", "==", childId).get();
+    if (snapshot.empty) return res.json({ paid: false });
 
-    db.query(query, [childId], (err, result) => {
-      if (err) return res.status(500).json({ message: "Server error" });
+    const docs = snapshot.docs.map(d => d.data());
+    docs.sort((a, b) => new Date(formatDate(b.created_at)) - new Date(formatDate(a.created_at)));
+    const payment = docs[0];
 
-      if (result.length === 0) {
-        return res.json({ paid: false });
-      }
-
-      const payment = result[0];
-      res.json({
-        paid: payment.status === "success",
-        amount: payment.amount,
-        date: payment.created_at,
-      });
+    res.json({
+      paid: payment.status === "success",
+      amount: payment.amount,
+      date: formatDate(payment.created_at),
     });
   } catch (err) {
+    console.error("Parent payment status error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
 app.post("/parent/leave", authMiddleware, async (req, res) => {
-  if (req.user.role !== "parent")
-    return res.status(403).json({ message: "Access denied" });
-
+  if (req.user.role !== "parent") return res.status(403).json({ message: "Access denied" });
   const { reason, startDate, endDate } = req.body;
-
-  if (!reason || !startDate || !endDate) {
-    return res.status(400).json({ message: "Please fill all fields" });
-  }
+  if (!reason || !startDate || !endDate) return res.status(400).json({ message: "Please fill all fields" });
 
   try {
     const childId = await getChildId(req.user.id);
     if (!childId) return res.status(404).json({ message: "No child assigned" });
 
-    const query = "INSERT INTO parent_leave_requests (parent_id, student_id, reason, start_date, end_date, status) VALUES (?, ?, ?, ?, ?, 'pending')";
-    db.query(query, [req.user.id, childId, reason, startDate, endDate], (err) => {
-      if (err) return res.status(500).json({ message: "Error submitting leave request" });
-      res.json({ message: "Leave Request Submitted Successfully" });
+    const docRef = db.collection("parent_leave_requests").doc();
+    await docRef.set({
+      id: docRef.id,
+      parent_id: req.user.id,
+      student_id: childId,
+      reason,
+      start_date: startDate,
+      end_date: endDate,
+      status: 'pending',
+      created_at: new Date().toISOString()
     });
+
+    res.json({ message: "Leave Request Submitted Successfully" });
   } catch (err) {
+    console.error("Parent leave error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
 app.get("/parent/leave-history", authMiddleware, async (req, res) => {
-  if (req.user.role !== "parent")
-    return res.status(403).json({ message: "Access denied" });
+  if (req.user.role !== "parent") return res.status(403).json({ message: "Access denied" });
 
   try {
     const childId = await getChildId(req.user.id);
     if (!childId) return res.status(404).json({ message: "No child assigned" });
 
-    const query = `
-      SELECT reason, start_date as startDate, end_date as endDate, status, created_at, 'student' as requestedBy 
-      FROM leave_requests WHERE user_id = ? 
-      UNION 
-      SELECT reason, start_date as startDate, end_date as endDate, status, created_at, 'parent' as requestedBy 
-      FROM parent_leave_requests WHERE student_id = ? 
-      ORDER BY created_at DESC
-    `;
-
-    db.query(query, [childId, childId], (err, result) => {
-      if (err) return res.status(500).json({ message: "Server error" });
-      res.json(result);
+    const result = [];
+    const studentLeaves = await db.collection("leave_requests").where("user_id", "==", childId).get();
+    studentLeaves.forEach(doc => {
+      const d = doc.data();
+      result.push({
+        id: doc.id,
+        reason: d.reason,
+        startDate: d.start_date,
+        endDate: d.end_date,
+        status: d.status,
+        created_at: formatDate(d.created_at),
+        requestedBy: 'student'
+      });
     });
+
+    const parentLeaves = await db.collection("parent_leave_requests").where("student_id", "==", childId).get();
+    parentLeaves.forEach(doc => {
+      const d = doc.data();
+      result.push({
+        id: doc.id,
+        reason: d.reason,
+        startDate: d.start_date,
+        endDate: d.end_date,
+        status: d.status,
+        created_at: formatDate(d.created_at),
+        requestedBy: 'parent'
+      });
+    });
+
+    result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json(result);
   } catch (err) {
+    console.error("Parent leave history error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
 
 app.get("/parent/notifications", authMiddleware, async (req, res) => {
-  if (req.user.role !== "parent")
-    return res.status(403).json({ message: "Access denied" });
+  if (req.user.role !== "parent") return res.status(403).json({ message: "Access denied" });
 
   try {
     const childId = await getChildId(req.user.id);
     if (!childId) return res.status(404).json({ message: "No child assigned" });
 
-    const query =
-      "SELECT message, read_status as readStatus, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC";
-    db.query(query, [childId], (err, result) => {
-      if (err) return res.status(500).json({ message: "Server error" });
-      res.json(result);
+    const snapshot = await db.collection("notifications").where("user_id", "==", childId).get();
+    const result = snapshot.docs.map(doc => {
+      const d = doc.data();
+      return {
+        id: doc.id,
+        message: d.message,
+        readStatus: d.read_status || false,
+        created_at: formatDate(d.created_at)
+      };
     });
+    result.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json(result);
   } catch (err) {
+    console.error("Parent notifications error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1468,5 +1811,5 @@ app.get("/parent/notifications", authMiddleware, async (req, res) => {
 /* ================= START SERVER ================= */
 
 app.listen(2008, () => {
-  console.log("Server running on port 2008 🚀");
+  console.log("Server running on port 2008 🚀 (Firebase Firestore Database active)");
 });

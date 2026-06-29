@@ -1,5 +1,12 @@
-const db = require("./db");
-db.query("SELECT * FROM attendance WHERE user_id = 10", (err, result) => {
+const db = require("../db");
+async function run() {
+  try {
+    const snap = await db.collection("attendance").where("user_id", "==", 10).get();
+    const result = snap.docs.map(d => d.data());
     console.log(JSON.stringify(result));
-    process.exit(0);
-});
+  } catch (e) {
+    console.error(e);
+  }
+  process.exit(0);
+}
+run();
