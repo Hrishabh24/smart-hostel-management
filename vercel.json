@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd smart-hostel-frontend && npm install && npm run build",
+  "outputDirectory": "smart-hostel-frontend/build",
+  "framework": "create-react-app"
+}
