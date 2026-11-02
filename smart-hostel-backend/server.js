@@ -54,13 +54,19 @@ const app = express();
 // Allowed Frontend Origins
 const allowedOrigins = [
   "https://smart-hostel-management-rn71.vercel.app",
-  "http://localhost:3000"
+  "http://localhost:3000",
+  "http://localhost:5173"
 ];
 
 // CORS Configuration
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (
+      !origin ||
+      allowedOrigins.includes(origin) ||
+      origin.includes("localhost") ||
+      origin.endsWith(".vercel.app")
+    ) {
       callback(null, true);
     } else {
       callback(new Error("Not allowed by CORS"));
@@ -78,7 +84,8 @@ app.use(cors({
     "Content-Type",
     "Authorization"
   ],
-  credentials: true
+  credentials: true,
+  optionsSuccessStatus: 200
 }));
 
 app.use(express.json());
