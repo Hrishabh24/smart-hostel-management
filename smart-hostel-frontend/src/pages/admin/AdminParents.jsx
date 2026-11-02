@@ -16,6 +16,7 @@ function AdminParents() {
   useEffect(() => {
     fetchParents();
     fetchStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchParents = async () => {

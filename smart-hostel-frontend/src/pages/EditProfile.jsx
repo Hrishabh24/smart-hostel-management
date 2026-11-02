@@ -2,9 +2,6 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
-import AdminSidebar from "../components/AdminSidebar";
-import WardenSidebar from "../components/WardenSidebar";
-import ParentSidebar from "../components/ParentSidebar";
 import { ChevronLeft, Save, AlertCircle, CheckCircle, Loader as LoaderIcon, Camera } from "lucide-react";
 import Loader from "../components/Loader";
 
@@ -75,7 +72,7 @@ function EditProfile() {
       errors.email = "Please enter a valid email";
     }
 
-    if (formData.phone && !/^[0-9\-\+\s\(\)]+$/.test(formData.phone)) {
+    if (formData.phone && !/^[0-9\-+\s()]+$/.test(formData.phone)) {
       errors.phone = "Please enter a valid phone number";
     }
 
@@ -155,14 +152,6 @@ function EditProfile() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const renderSidebar = () => {
-    // Only student role needs sidebar here. Admin, Warden, Parent use layouts.
-    if (userRole === 'student' || !userRole) {
-      return <Sidebar />;
-    }
-    return null;
   };
 
   const getProfilePath = () => {

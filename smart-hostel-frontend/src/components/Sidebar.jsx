@@ -7,7 +7,6 @@ import {
   CreditCard,
   AlertCircle,
   UserMinus,
-  Bell,
   LogOut,
   ChevronRight,
   HelpCircle,

@@ -25,6 +25,7 @@ function AdminDashboard() {
     fetchStats();
     fetchChartsData();
     fetchRecentActivity();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchStats = async () => {

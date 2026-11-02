@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { CheckCircle, Clock, AlertTriangle, ShieldCheck } from "lucide-react";
+import { CheckCircle, ShieldCheck } from "lucide-react";
 
 function AdminComplaints() {
   const token = localStorage.getItem("token");
@@ -13,6 +13,7 @@ function AdminComplaints() {
 
   useEffect(() => {
     fetchComplaints();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchComplaints = async () => {

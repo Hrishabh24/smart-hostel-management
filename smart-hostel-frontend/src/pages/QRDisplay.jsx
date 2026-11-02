@@ -64,6 +64,7 @@ function QRDisplay() {
     generateQR();
     const interval = setInterval(() => generateQR(true), 120000); // 2 minutes refresh for dynamic QR
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayLocation]); // Rerun setup if location changes
 
   return (

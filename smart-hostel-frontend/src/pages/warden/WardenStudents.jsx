@@ -12,6 +12,7 @@ function WardenStudents() {
 
   useEffect(() => {
     fetchStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchStudents = async () => {

@@ -1,14 +1,13 @@
 import { Html5QrcodeScanner } from "html5-qrcode";
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
 
 function Attendance() {
   const navigate = useNavigate();
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("Initializing scanner...");
-  const [successCount, setSuccessCount] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const scannerRef = useRef(null);
   const token = localStorage.getItem("token");
@@ -76,7 +75,6 @@ function Attendance() {
 
             console.log("Attendance response:", response.data);
             setMessage("Attendance Marked ✅ Successfully");
-            setSuccessCount(prev => prev + 1);
             setStatus("Success! Attendance recorded.");
             
             try {

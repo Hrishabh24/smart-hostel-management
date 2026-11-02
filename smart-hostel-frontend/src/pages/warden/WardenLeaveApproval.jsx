@@ -12,6 +12,7 @@ function WardenLeaveApproval() {
 
   useEffect(() => {
     fetchLeaveRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchLeaveRequests = async () => {

@@ -2,9 +2,6 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "../components/Sidebar";
-import AdminSidebar from "../components/AdminSidebar";
-import WardenSidebar from "../components/WardenSidebar";
-import ParentSidebar from "../components/ParentSidebar";
 import { Edit2, Mail, Phone, MapPin, Award, DollarSign, AlertCircle } from "lucide-react";
 import Loader from "../components/Loader";
 
@@ -57,14 +54,6 @@ function Profile() {
     if (attendance >= 75) return 'bg-green-500/10 border-green-500/20';
     if (attendance >= 50) return 'bg-yellow-500/10 border-yellow-500/20';
     return 'bg-red-500/10 border-red-500/20';
-  };
-
-  const renderSidebar = () => {
-    // Only render sidebar if student. Admin, Warden, and Parent use layouts that already include a sidebar.
-    if (profile.role === 'student' || !profile.role) {
-      return <Sidebar />;
-    }
-    return null;
   };
 
   const getEditPath = () => {
