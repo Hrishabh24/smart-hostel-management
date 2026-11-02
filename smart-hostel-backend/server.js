@@ -1,3 +1,5 @@
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 const express = require("express");
 const cors = require("cors");
 const db = require("./db");
@@ -9,8 +11,6 @@ const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const multer = require("multer");
 const fs = require("fs");
-const path = require("path");
-require("dotenv").config();
 
 // Ensure uploads directory exists
 if (!fs.existsSync("uploads")) {
@@ -854,17 +854,29 @@ app.get("/student/attendance-percentage", authMiddleware, async (req, res) => {
 
 /* ================= RAZORPAY ================= */
 
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+let razorpay = null;
+if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+  try {
+    razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
+  } catch (rErr) {
+    console.warn("⚠️ Razorpay initialization failed:", rErr.message);
+  }
+} else {
+  console.warn("⚠️ Razorpay keys missing in environment. Payment endpoints will be disabled.");
+}
 
 app.get("/razorpay-key", (req, res) => {
-  res.json({ key: process.env.RAZORPAY_KEY_ID });
+  res.json({ key: process.env.RAZORPAY_KEY_ID || "" });
 });
 
 app.post("/create-order", authMiddleware, async (req, res) => {
   try {
+    if (!razorpay) {
+      return res.status(503).json({ message: "Payment gateway is not configured" });
+    }
     const checkSnap = await db.collection("payments").where("user_id", "==", req.user.id).where("status", "==", "success").limit(1).get();
     if (!checkSnap.empty) {
       return res.status(400).json({ message: "Fees already paid" });

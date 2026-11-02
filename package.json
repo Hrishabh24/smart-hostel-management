@@ -1,4 +1,11 @@
 {
+  "name": "smart-hostel",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node smart-hostel-backend/server.js",
+    "build": "npm --prefix smart-hostel-backend install"
+  },
   "dependencies": {
     "qrcode.react": "^4.2.0",
     "razorpay": "^2.9.6",
