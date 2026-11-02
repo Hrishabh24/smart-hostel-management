@@ -50,7 +50,37 @@ const transporter = nodemailer.createTransport({
 });
 
 const app = express();
-app.use(cors());
+
+// Allowed Frontend Origins
+const allowedOrigins = [
+  "https://smart-hostel-management-rn71.vercel.app",
+  "http://localhost:3000"
+];
+
+// CORS Configuration
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  methods: [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS"
+  ],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization"
+  ],
+  credentials: true
+}));
+
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -1810,6 +1840,8 @@ app.get("/parent/notifications", authMiddleware, async (req, res) => {
 
 /* ================= START SERVER ================= */
 
-app.listen(2008, () => {
-  console.log("Server running on port 2008 🚀 (Firebase Firestore Database active)");
+const PORT = process.env.PORT || 2008;
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT} 🚀`);
 });
