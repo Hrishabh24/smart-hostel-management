@@ -1,5 +1,14 @@
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("⚠️ Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("⚠️ Uncaught Exception:", error);
+});
+
 const express = require("express");
 const cors = require("cors");
 const db = require("./db");
