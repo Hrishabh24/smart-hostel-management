@@ -427,14 +427,33 @@ app.get("/student/profile", authMiddleware, async (req, res) => {
     userData.enrollmentStatus = "Active Member";
 
     if (userData.role === 'student') {
-      const attSnap = await db.collection("attendance").where("user_id", "==", req.user.id).get();
-      const presentDays = attSnap.size;
+      let presentDays = 0;
+      try {
+        const attSnap = await db.collection("attendance").where("user_id", "==", req.user.id).get();
+        presentDays = attSnap.size;
+      } catch (e) {
+        console.warn("Attendance count error:", e.message);
+      }
 
-      const compSnap = await db.collection("complaints").where("user_id", "==", req.user.id).where("status", "==", "pending").get();
-      const activeComplaints = compSnap.size;
+      let activeComplaints = 0;
+      try {
+        const compSnap = await db.collection("complaints").where("user_id", "==", req.user.id).where("status", "==", "pending").get();
+        activeComplaints = compSnap.size;
+      } catch (e) {
+        console.warn("Complaints count error:", e.message);
+      }
 
-      const feeSnap = await db.collection("payments").where("user_id", "==", req.user.id).orderBy("created_at", "desc").limit(1).get();
-      const feeStatus = !feeSnap.empty ? feeSnap.docs[0].data().status : 'due';
+      let feeStatus = 'due';
+      try {
+        const feeSnap = await db.collection("payments").where("user_id", "==", req.user.id).get();
+        if (!feeSnap.empty) {
+          const feeDocs = feeSnap.docs.map(d => d.data());
+          feeDocs.sort((a, b) => new Date(formatDate(b.created_at)) - new Date(formatDate(a.created_at)));
+          feeStatus = feeDocs[0].status || 'due';
+        }
+      } catch (e) {
+        console.warn("Fee status check error:", e.message);
+      }
 
       userData.presentDays = presentDays;
       userData.complaints = activeComplaints;
@@ -521,7 +540,14 @@ app.get("/student/room", authMiddleware, async (req, res) => {
     }
 
     if (!userData || !userData.roomNumber) {
-      return res.status(404).json({ message: "No room assigned" });
+      return res.status(200).json({
+        roomNumber: null,
+        message: "No room assigned",
+        status: "Not Assigned",
+        occupants: 0,
+        roommates: [],
+        facilities: []
+      });
     }
 
     const currentUserName = userData.name;
